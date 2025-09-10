@@ -4,7 +4,6 @@ from PIL import Image, ImageTk, ImageOps
 import tkinter.messagebox as messagebox
 import sqlite3
 
-
 # tkinter is de standaard GUI-module van Python. Hiermee maak je vensters, knoppen, labels, frames, enz.
 # random gebruiken we om willekeurige getallen te genereren voor speler en computer, bijvoorbeeld random.randint(0,10).
 
@@ -217,14 +216,31 @@ def bevestig_gegevens():
 # Verberg het naam-frame en maak een nieuw frame met een bericht en een sluit-knop
 def toon_jongScherm():
     naam_frame.pack_forget()
-    sorry_frame = tk.Frame(venster, bg="#ffffff")
+    sorry_frame = tk.Frame(venster, bg="#222222")
     sorry_frame.pack(expand=True, fill='both')
 
-    sorry_label = tk.Label(sorry_frame, text="Sorry, je moet 18 jaar of ouder zijn om dit spel te mogen spelen.", font=("Georgia", 16), bg="#ffffff", fg="red")
-    sorry_label.pack(pady=50)
+    sorry_label = tk.Label(
+        sorry_frame,
+        text="SORRY, je moet 18 jaar of ouder zijn om dit spel te mogen spelen.",
+        font=("Georgia", 18, "bold"),
+        fg="red",
+        bg="#222222",
+        wraplength=500,   # zodat tekst niet te breed wordt
+        justify="center"
+    )
+    # Zet label exact in het midden van sorry_frame
+    sorry_label.place(relx=0.5, rely=0.4, anchor="center")
 
-    sluit_knop = tk.Button(sorry_frame, text="Sluit", command=venster.quit, font=("Georgia", 14), bg="#e74c3c", fg="white")
-    sluit_knop.pack(pady=20)
+    sluit_knop = tk.Button(
+        sorry_frame,
+        text="Sluit",
+        command=venster.quit,
+        font=("Georgia", 14),
+        bg="#e74c3c",
+        fg="white"
+    )
+    sluit_knop.place(relx=0.5, rely=0.7, anchor="center")  # knop iets lager
+
 
 def toon_emailcheck_scherm():
     email_frame = tk.Frame(venster, bg="#222222", bd=10, relief="ridge", width=600, height=600)
@@ -502,6 +518,8 @@ def toon_welkom_scherm(bericht, image=None):
 def ga_naar_regels(frame):
     frame.pack_forget()
     regels_frame.pack(pady=20)
+    regels_frame.place(relx=0.5, rely=0.4, anchor="center")   
+    
 
 
 # Verberg de regels en toon het game-frame.
@@ -513,8 +531,9 @@ def start_game():
     global computer_score
     # Hide regels, show game
     regels_frame.pack_forget()
+    regels_frame.place_forget()
     game_frame.pack(pady=20)
-    
+    game_frame.place(relx=0.5, rely=0.4, anchor="center")
     speler_score = random.randint(0, 6)
     computer_score = random.randint(0, 6)
     update_labels()
@@ -638,7 +657,8 @@ def opnieuw_spelen():
     update_labels()
     resultaat_label.config(text="", image="")  #  Reset afbeelding
     game_frame.pack(pady=20)
-    # regels_frame.pack(pady=20)
+    game_frame.place(relx=0.5, rely=0.4, anchor="center")
+    # regels_frame.pack(pady=20)   # verwijder game scherm
     knop_ja.config(state="normal")
     knop_nee.config(state="normal")
     knop_opnieuw.pack_forget()           # Knop weer verbergen
@@ -662,7 +682,7 @@ def opnieuw_spelen():
 venster = tk.Tk()
 venster.title("Blackjack 30")
 venster.geometry("700x600")
-venster.config(bg="#ffffff")
+venster.config(bg="#222222", bd=10, relief="ridge", width=600, height=600)
 
 def sluit_venster():
     conn.close()
@@ -751,6 +771,7 @@ start_knop.pack(pady=10)
 
 # --- Game Frame --- #
 game_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge")
+
 
 score_frame = tk.Frame(game_frame, bg="#222222",)
 score_frame.pack(pady=10)

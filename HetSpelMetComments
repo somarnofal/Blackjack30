@@ -167,48 +167,49 @@ def bevestig_gegevens():
     # Check of het e-mailadres al in de database staat
     c.execute("SELECT id, naam, overwinningen FROM spelers WHERE email = ?", (speler_email,))
     rij = c.fetchone()
-    naam_frame.pack_forget()
 
     if rij:
-        # Bekende speler → toon statistieken
-        speler_id, speler_naam, mijn_wins = rij
+        # Email bestaat al → foutmelding + knop terug naar login
+        fout_label.config(text="Dit e-mailadres is al geregistreerd.")
 
-        # Haal totaal aantal overwinningen
-        c.execute("SELECT SUM(overwinningen) FROM spelers")
-        totaal_wins = c.fetchone()[0] or 0
-
-        if totaal_wins > 0:
-            mijn_percentage = (mijn_wins / totaal_wins) * 100
-        else:
-            mijn_percentage = 0
-
-        # Beste speler opvragen
-        c.execute("SELECT naam, MAX(overwinningen) FROM spelers")
-        beste = c.fetchone()
-        if beste and beste[0] != speler_naam:
-            extra = f"\nDe beste speler is {beste[0]} met {beste[1]} overwinningen!"
-        else:
-            extra = ""
-
-        toon_welkom_scherm(
-            f"Welkom terug, {speler_naam}!\n"
-            f"Je hebt al {mijn_wins} keer gewonnen.\n"
-            f"Dat is {mijn_percentage:.2f}% van alle overwinningen!"
-            f"{extra}"
+        terug_knop = tk.Button(
+            naam_frame,
+            text="Terug naar inloggen",
+            font=("Georgia", 12),
+            bg="#3498db",
+            fg="white",
+            command=lambda: [naam_frame.pack_forget(), toon_emailcheck_scherm()]
         )
+        terug_knop.pack(pady=5)
+        return  # heel belangrijk: STOP hier, ga niet verder
 
+    # Nieuwe speler → invoegen
+    try:
+        c.execute(
+            "INSERT INTO spelers (naam, leeftijd, email) VALUES (?, ?, ?)",
+            (speler_naam, speler_leeftijd, speler_email),
+        )
+        conn.commit()
+        naam_frame.pack_forget()   # alleen verbergen als insert gelukt is
+        start_tutorial()
+    except sqlite3.IntegrityError:
+        fout_label.config(text="Dit e-mailadres is al geregistreerd.")
 
-    else:
-        # Nieuwe speler → invoegen
-        try:
-            c.execute(
-                "INSERT INTO spelers (naam, leeftijd, email) VALUES (?, ?, ?)",
-                (speler_naam, speler_leeftijd, speler_email),
-            )
-            conn.commit()
-            start_tutorial()
-        except sqlite3.IntegrityError:
-            fout_label.config(text="Dit e-mailadres is al geregistreerd.")
+    # Toon een knop om naar login terug te gaan
+    def terug_naar_login():
+        naam_frame.pack_forget()
+        toon_emailcheck_scherm()
+
+    terug_knop = tk.Button(
+        naam_frame,
+        text="Ga naar login",
+        font=("Georgia", 12),
+        bg="#3498db",
+        fg="white",
+        command=terug_naar_login
+    )
+    terug_knop.pack(pady=5)
+
 
 
 
@@ -254,29 +255,25 @@ def toon_emailcheck_scherm():
         if rij:
             naam, mijn_wins = rij
 
-            # Bereken totaal aantal wins
-            c.execute("SELECT SUM(overwinningen) FROM spelers")
-            totaal_wins = c.fetchone()[0] or 0
+                # Bereken ranking van speler
+            c.execute("SELECT COUNT(*) FROM spelers WHERE overwinningen > ?", (mijn_wins,))
+            hoger = c.fetchone()[0]
+            rang = hoger + 1
 
-            if totaal_wins > 0:
-                mijn_percentage = (mijn_wins / totaal_wins) * 100
-            else:
-                mijn_percentage = 0
-
-            # Beste speler
-            c.execute("SELECT naam, MAX(overwinningen) FROM spelers")
+            # Beste speler ophalen
+            c.execute("SELECT naam, overwinningen FROM spelers ORDER BY overwinningen DESC LIMIT 1")
             beste = c.fetchone()
             if beste and beste[0] != naam:
-                extra = f"\nDe beste speler is {beste[0]} met {beste[1]} overwinningen!"
+                extra = f"\nDe beste speler is met {beste[1]} overwinningen!"
             else:
                 extra = ""
 
             fout_label_check.config(text="")
             email_frame.destroy()
             toon_welkom_scherm(
-                f"Welkom terug, {naam}!\n"
-                f"Je hebt al {mijn_wins} keer gewonnen.\n"
-                f"Dat is {mijn_percentage:.2f}% van alle overwinningen!"
+                f"Welkom terug, {naam}!\n\n"
+                f"Keer gewonnen: {mijn_wins}\n"
+                f"Jou ranking in de ranglijst is: {rang}"
                 f"{extra}"
             )
         else:
@@ -664,7 +661,7 @@ def opnieuw_spelen():
 # --- GUI Setup --- #
 venster = tk.Tk()
 venster.title("Blackjack 30")
-venster.geometry("700x500")
+venster.geometry("700x600")
 venster.config(bg="#ffffff")
 
 def sluit_venster():
@@ -686,7 +683,7 @@ bg_label = tk.Label(venster, image=achtergrond)
 bg_label.place(relwidth=1, relheight=1)
 
 # --- Naam Frame --- #
-naam_frame = tk.Frame(venster, bg="#222222", bd=10, relief="ridge", width=600, height=600)
+naam_frame = tk.Frame(venster, bg="#222222", bd=10, relief="ridge", width=600)
 
 # Emoji laden
 welkom_img = Image.open("c:\\Users\\somar\\OneDrive\\Fontys\\Emoji's\\heart_eyes.png").resize((40, 40))
@@ -733,6 +730,7 @@ regels_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge")
 
 regels_title = tk.Label(regels_frame,image=regels_emoji, text="  Spelregels", font=("Georgia", 20, "bold"), fg="#FFFFFF",bg="#222222", compound="left")
 regels_title.pack(pady=5)
+
 
 regels_text = (
     "1. Startfase\n"

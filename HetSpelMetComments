@@ -18,11 +18,10 @@ speler_email = ""
 # speler_naam wordt ingevuld door de gebruiker via een input.
 
 #DATABASE
-# --- Database Setup --- #
 conn = sqlite3.connect("blackjack30.db")
 c = conn.cursor()
 
-# Maak de tabel als die nog niet bestaat
+
 c.execute("""
 CREATE TABLE if not exists spelers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -255,7 +254,7 @@ def toon_emailcheck_scherm():
     tk.Label(email_frame, text="Voer je e-mailadres in:", font=("Georgia", 14),
              bg="#222222", fg="white").pack(pady=10)
 
-    email_entry_check = tk.Entry(email_frame, font=("Georgia", 14), width=25)
+    email_entry_check = tk.Entry(email_frame, font=("Georgia", 14), width=20)
     email_entry_check.pack(pady=10)
 
     fout_label_check = tk.Label(email_frame, text="", font=("Georgia", 11),
@@ -303,11 +302,11 @@ def toon_emailcheck_scherm():
     button_frame = tk.Frame(email_frame, bg="#222222")
     button_frame.pack(pady=20)
 
-    tk.Button(button_frame, text="Bevestig", font=("Georgia", 14), 
-          bg="#246a41", fg="white", command=bevestig_email, width=12).grid(row=0, column=0, padx=10)
+    tk.Button(button_frame, text="Inloggen", font=("Georgia", 14), 
+          bg="#246a41", fg="white", command=bevestig_email, width=12).grid(row=0, column=1, padx=10)
 
     tk.Button(button_frame, text="Registreren", font=("Georgia", 14),
-          bg="#3498db", fg="white", command=ga_naar_registratie, width=12).grid(row=0, column=1, padx=10)
+          bg="#3498db", fg="white", command=ga_naar_registratie, width=12).grid(row=1, column=1, padx=10,pady=10)
 
 
     def bevestig_email():
@@ -337,7 +336,7 @@ def start_inlogscherm():
     # Titel net als naam_frame
     vraag_label = tk.Label(
         inlog_frame,
-        text="Welkom bij Blackjack 30!\n\nHeb je je e-mailadres al geregistreerd?",
+        text="Welkom bij Blackjack 30!\n\nHeb je het spel al eerder gespeeld?",
         font=("Georgia", 18, "bold"),
         fg="gold",
         bg="#222222"
@@ -811,14 +810,14 @@ game_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge", width=700, he
 score_frame = tk.Frame(game_frame, bg="#222222",)
 score_frame.pack(pady=10)
 
-speler_label = tk.Label(score_frame, text=f"{speler_naam}'s score: {speler_score}", font=("Georgia", 16, "bold"), fg="#3f88b9",bg="#222222")
+speler_label = tk.Label(score_frame, text=f"{speler_naam}'s score: {speler_score}", font=("Georgia", 18, "bold"), fg="#77b8e3",bg="#222222")
 speler_label.grid(row=0, column=0, padx=20)
 
-computer_label = tk.Label(score_frame, text=f"Computer score: {computer_score}", font=("Georgia", 16, "bold"), fg="#d45f55",bg="#222222")
+computer_label = tk.Label(score_frame, text=f"Computer score: {computer_score}", font=("Georgia", 18, "bold"), fg="#e08d85",bg="#222222")
 computer_label.grid(row=0, column=1, padx=20)
 
 doorgaan_label = tk.Label(game_frame, text="Extra punten toevoegen?", font=("Georgia", 14), fg="#FFFFFF", bg="#222222")
-doorgaan_label.pack(pady=10)
+doorgaan_label.pack(pady=40)
 
 resultaat_label = tk.Label(game_frame, text="", font=("Georgia", 18, "bold"), bg="#222222")
 resultaat_label.pack(pady=10)

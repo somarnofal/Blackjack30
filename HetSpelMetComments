@@ -491,7 +491,10 @@ def start_tutorial():
 
     def start_echt_spel():
         tutorial_frame.pack_forget()
-        regels_frame.pack(pady=20)
+        naam_frame.pack_forget()
+        regels_frame.pack_forget()
+
+        start_game()
 
     # Start met de allereerste ‘Yes’ knop (intro-scherm)
     tk.Button(knop_frame, text="Yes", command=volgende_stap,
@@ -527,17 +530,44 @@ def ga_naar_regels(frame):
 # update_labels() toont de scores in de GUI.
 # De knop “Opnieuw spelen” wordt uitgeschakeld aan het begin van het spel.
 def start_game():
-    global speler_score
-    global computer_score
-    # Hide regels, show game
+    global speler_score, computer_score
     regels_frame.pack_forget()
     regels_frame.place_forget()
     game_frame.pack(pady=20)
     game_frame.place(relx=0.5, rely=0.4, anchor="center")
+
     speler_score = random.randint(0, 6)
     computer_score = random.randint(0, 6)
     update_labels()
+
+    # 🔥 Update speler stats bovenaan
+    get_speler_stats()
+    speler_info_label.config(
+        text=f"👤 {speler_naam} | 🏆 {speler_wins} overwinningen | 📊 Rang: {speler_rang}"
+    )
+
     knop_opnieuw.config(state="disabled")
+
+def get_speler_stats():
+    global speler_naam, speler_wins, speler_rang
+
+    # Aantal overwinningen ophalen
+    c.execute("SELECT naam, overwinningen FROM spelers WHERE email = ?", (speler_email,))
+    rij = c.fetchone()
+    if rij:
+        speler_naam, speler_wins = rij
+    else:
+        speler_wins = 0
+
+    # Ranking bepalen
+    c.execute("SELECT COUNT(*) FROM spelers WHERE overwinningen > ?", (speler_wins,))
+    hoger = c.fetchone()[0]
+    speler_rang = hoger + 1
+
+    # Label updaten
+    speler_info_label.config(
+        text=f"👤 {speler_naam} | 🏆 {speler_wins} overwiningen | 📊 Rang: {speler_rang}"
+    )
 
 # Boven 20 → beperkt risico:
 # Als speler/computer ≥ 20 is, worden random getallen toegevoegd tussen 0–3 in plaats van 0–10.
@@ -629,11 +659,13 @@ def check_winner(final=False):
         disable_buttons()
         c.execute("UPDATE spelers SET overwinningen = overwinningen + 1 WHERE email = ?", (speler_email,))
         conn.commit()
+        get_speler_stats()
     elif final:
         if abs(30 - speler_score) < abs(30 - computer_score):
             resultaat_label.config(image=win_emoji, text="  Je wint!", fg="green", compound="left")
             c.execute("UPDATE spelers SET overwinningen = overwinningen + 1 WHERE email = ?", (speler_email,))
             conn.commit()
+            get_speler_stats()
         elif abs(30 - speler_score) > abs(30 - computer_score):
             resultaat_label.config(image=lose_emoji, text="  Computer wint!", fg="red", compound="left")
         else:
@@ -705,6 +737,7 @@ bg_label.place(relwidth=1, relheight=1)
 # --- Naam Frame --- #
 naam_frame = tk.Frame(venster, bg="#222222", bd=10, relief="ridge", width=600)
 
+
 # Emoji laden
 welkom_img = Image.open("c:\\Users\\somar\\OneDrive\\Fontys\\Emoji's\\heart_eyes.png").resize((40, 40))
 welkom_emoji = ImageTk.PhotoImage(welkom_img)
@@ -770,7 +803,8 @@ start_knop = tk.Button(regels_frame, text="Start spel", command=start_game, font
 start_knop.pack(pady=10)
 
 # --- Game Frame --- #
-game_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge")
+game_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge", width=700, height=400)
+
 
 
 score_frame = tk.Frame(game_frame, bg="#222222",)
@@ -808,6 +842,18 @@ knop_opnieuw = tk.Button(
     bg="#3498db",
     fg="white"
 )
+
+speler_info_frame = tk.Frame(game_frame, bg="#222222")
+speler_info_frame.pack(pady=10)
+
+speler_info_label = tk.Label(
+    speler_info_frame,
+    text="",
+    font=("Georgia", 14, "bold"),
+    fg="gold",
+    bg="#222222"
+)
+speler_info_label.pack()
 
 # import sqlite3
 # conn = sqlite3.connect("blackjack30.db")

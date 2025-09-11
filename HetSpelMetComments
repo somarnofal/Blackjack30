@@ -492,6 +492,7 @@ def start_tutorial():
     def start_echt_spel():
         tutorial_frame.pack_forget()
         naam_frame.pack_forget()
+        naam_frame.place_forget()
         regels_frame.pack_forget()
 
         start_game()

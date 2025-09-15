@@ -143,7 +143,7 @@ def bevestig_gegevens():
         fout_label.config(text="Voer een geldige leeftijd in (cijfers).")
         return
     leeftijd = int(leeftijd_s)
-    if leeftijd <= 0 or leeftijd > 116:
+    if leeftijd <= 0 or leeftijd > 116: #Omdat de oudste mens ooit 116 jaar is geworden
         fout_label.config(text="Leeftijd moet tussen 1 en 116 liggen.")
         return
     if leeftijd < 18:
@@ -279,7 +279,7 @@ def toon_emailcheck_scherm():
             c.execute("SELECT naam, overwinningen FROM spelers ORDER BY overwinningen DESC LIMIT 1")
             beste = c.fetchone()
             if beste and beste[0] != naam:
-                extra = f"\nDe beste speler is met {beste[1]} overwinningen!"
+                extra = f"\nDe beste speler heeft {beste[1]} overwinningen!"
             else:
                 extra = ""
 
@@ -365,33 +365,175 @@ def start_inlogscherm():
               command=ga_naar_invoer,
               width=12).grid(row=0, column=1, padx=20)
 
+# def start_tutorial():
+#     naam_frame.pack_forget()
+
+#     tutorial_frame = tk.Frame(venster, bg="#222222")
+#     tutorial_frame.pack(expand=True, fill="both")
+
+#     # Center container
+#     center_frame = tk.Frame(tutorial_frame, bg="#222222")
+#     center_frame.place(relx=0.5, rely=0.5, anchor="center")
+
+#     # Intro tekst
+#     uitleg = tk.Label(
+#         center_frame,
+#         text="Welkom bij Blackjack 30!\n\nDit spel is ontworpen voor jou.\nKlaar voor een snelle tutorial?",
+#         font=("Georgia", 16), fg="gold", bg="#222222",
+#         wraplength=600, justify="center"
+#     )
+#     uitleg.pack(pady=20)
+
+#     # Scoreboard (verborgen totdat JA/NEE-demo aan de beurt is)
+#     speler_demo = tk.Label(center_frame, text="Jouw score: 0",
+#                            font=("Georgia", 14, "bold"), fg="white", bg="#222222")
+#     computer_demo = tk.Label(center_frame, text="Computer score: 0",
+#                              font=("Georgia", 14, "bold"), fg="white", bg="#222222")
+
+#     # Knoppen-container
+#     knop_frame = tk.Frame(center_frame, bg="#222222")
+#     knop_frame.pack(pady=20)
+
+#     scores = {"speler": 0, "computer": 0}
+#     stap = {"index": 0}
+
+#     def clear_knoppen():
+#         for w in knop_frame.winfo_children():
+#             w.destroy()
+
+#     def volgende_stap():
+#         clear_knoppen()
+
+#         # Verberg standaard het scoreboard; toon alleen waar nodig
+#         speler_demo.pack_forget()
+#         computer_demo.pack_forget()
+
+#         if stap["index"] == 0:
+#             # Uitleg over het doel van het spel
+#             uitleg.config(
+#                 text="In dit spel probeer je zo dicht mogelijk bij de 30 te komen.\n"
+#                      "Ga je boven de 30, dan verlies je."
+#             )
+#             tk.Button(knop_frame, text="Volgende", command=volgende_stap,
+#                       font=("Georgia", 14), bg="#246a41", fg="white").pack()
+
+#         elif stap["index"] == 1:
+#             # JA-demo stap: scoreboard in beeld
+#             uitleg.config(
+#                 text="Klik op JA om extra punten te krijgen!\n"
+#                      "Ik laat je zien wat er gebeurt..."
+#             )
+#             speler_demo.pack(pady=5)
+#             computer_demo.pack(pady=5)
+#             tk.Button(knop_frame, text="JA", command=klik_ja_demo,
+#                       font=("Georgia", 14), bg="#246a41", fg="white").pack()
+
+#         elif stap["index"] == 2:
+#             # NEE-demo stap: scoreboard blijft zichtbaar
+#             uitleg.config(
+#                 text="Klik op NEE als je denkt dat je al dichter bij 30 zit.\n"
+#                      "Dan krijgt de computer nog punten."
+#             )
+#             speler_demo.pack(pady=5)
+#             computer_demo.pack(pady=5)
+#             tk.Button(knop_frame, text="NEE", command=klik_nee_demo,
+#                       font=("Georgia", 14), bg="#a93226", fg="white").pack()
+
+#         elif stap["index"] == 3:
+#             # Afronding
+#             uitleg.config(
+#                 text="Goed gedaan! Nu weet je hoe het werkt.\n"
+#                      "Klaar om het echte spel te starten?"
+#             )
+#             tk.Button(knop_frame, text="Ja!", command=start_echt_spel,
+#                       font=("Georgia", 14), bg="#3498db", fg="white").pack(side="left", padx=10)
+#             tk.Button(knop_frame, text="Hell Jaaa!", command=start_echt_spel,
+#                       font=("Georgia", 14), bg="#e67e22", fg="white").pack(side="left", padx=10)
+
+#         # Naar volgende index voor de volgende keer dat we 'volgende_stap' aanroepen
+#         stap["index"] += 1
+
+#     def klik_ja_demo():
+#         # Voorkom dubbelklikken: eerst knoppen weghalen
+#         clear_knoppen()
+
+#         # Scores verhogen (speler én computer)
+#         extra_speler = random.randint(1, 6)
+#         extra_comp = random.randint(1, 6)
+#         scores["speler"] += extra_speler
+#         scores["computer"] += extra_comp
+
+#         speler_demo.config(text=f"Jouw score: {scores['speler']} (+{extra_speler})")
+#         computer_demo.config(text=f"Computer score: {scores['computer']} (+{extra_comp})")
+#         uitleg.config(text="Zie je? Jij en de computer kregen extra punten!")
+
+#         # Eén duidelijke volgende-knop
+#         tk.Button(knop_frame, text="Volgende", command=volgende_stap,
+#                   font=("Georgia", 14), bg="#246a41", fg="white").pack()
+
+#     def klik_nee_demo():
+#         # Voorkom dubbelklikken: eerst knoppen weghalen
+#         clear_knoppen()
+
+#         # Alleen computer krijgt punten
+#         extra_comp = random.randint(1, 6)
+#         scores["computer"] += extra_comp
+
+#         computer_demo.config(text=f"Computer score: {scores['computer']} (+{extra_comp})")
+#         uitleg.config(text="Omdat je stopte, kreeg de computer extra punten.\n"
+#                           "Jouw score bleef gelijk.\n\n" \
+#                           "Nu bepaalt het spel wie er wint op basis van de scores!\n")
+
+#         # Eén duidelijke volgende-knop
+#         tk.Button(knop_frame, text="Volgende", command=volgende_stap,
+#                   font=("Georgia", 14), bg="#246a41", fg="white").pack()
+
+#     def start_echt_spel():
+#         tutorial_frame.pack_forget()
+#         naam_frame.pack_forget()
+#         naam_frame.place_forget()
+#         regels_frame.pack_forget()
+
+#         start_game()
+
+#     # Start met de allereerste ‘Yes’ knop (intro-scherm)
+#     tk.Button(knop_frame, text="Yes", command=volgende_stap,
+#               font=("Georgia", 14), bg="#246a41", fg="white").pack()
+
 def start_tutorial():
     naam_frame.pack_forget()
 
-    tutorial_frame = tk.Frame(venster, bg="#222222")
-    tutorial_frame.pack(expand=True, fill="both")
+    tutorial_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge", width=700, height=400)
+    tutorial_frame.pack(pady=20)
+    tutorial_frame.place(relx=0.5, rely=0.4, anchor="center")
 
-    # Center container
-    center_frame = tk.Frame(tutorial_frame, bg="#222222")
-    center_frame.place(relx=0.5, rely=0.5, anchor="center")
+    # Scorebord bovenaan (zoals in game_frame)
+    score_frame = tk.Frame(tutorial_frame, bg="#222222")
+    score_frame.pack(pady=10)
 
-    # Intro tekst
+    speler_demo = tk.Label(score_frame, text="Jouw score: 0", font=("Georgia", 18, "bold"),
+                           fg="#77b8e3", bg="#222222")
+    speler_demo.grid(row=0, column=0, padx=20)
+
+    computer_demo = tk.Label(score_frame, text="Computer score: 0", font=("Georgia", 18, "bold"),
+                             fg="#e08d85", bg="#222222")
+    computer_demo.grid(row=0, column=1, padx=20)
+
+    # Vraag in het midden
     uitleg = tk.Label(
-        center_frame,
+        tutorial_frame,
         text="Welkom bij Blackjack 30!\n\nDit spel is ontworpen voor jou.\nKlaar voor een snelle tutorial?",
         font=("Georgia", 16), fg="gold", bg="#222222",
         wraplength=600, justify="center"
     )
     uitleg.pack(pady=20)
 
-    # Scoreboard (verborgen totdat JA/NEE-demo aan de beurt is)
-    speler_demo = tk.Label(center_frame, text="Jouw score: 0",
-                           font=("Georgia", 14, "bold"), fg="white", bg="#222222")
-    computer_demo = tk.Label(center_frame, text="Computer score: 0",
-                             font=("Georgia", 14, "bold"), fg="white", bg="#222222")
+    # Resultaat-label (zoals in echt spel)
+    resultaat_demo = tk.Label(tutorial_frame, text="", font=("Georgia", 18, "bold"), bg="#222222")
+    resultaat_demo.pack(pady=10)
 
-    # Knoppen-container
-    knop_frame = tk.Frame(center_frame, bg="#222222")
+    # Knoppen onderaan
+    knop_frame = tk.Frame(tutorial_frame, bg="#222222")
     knop_frame.pack(pady=20)
 
     scores = {"speler": 0, "computer": 0}
@@ -404,60 +546,34 @@ def start_tutorial():
     def volgende_stap():
         clear_knoppen()
 
-        # Verberg standaard het scoreboard; toon alleen waar nodig
-        speler_demo.pack_forget()
-        computer_demo.pack_forget()
-
         if stap["index"] == 0:
-            # Uitleg over het doel van het spel
-            uitleg.config(
-                text="In dit spel probeer je zo dicht mogelijk bij de 30 te komen.\n"
-                     "Ga je boven de 30, dan verlies je."
-            )
+            uitleg.config(text="In dit spel probeer je zo dicht mogelijk bij 30 te komen.\n"
+                               "Ga je boven de 30, dan verlies je.")
             tk.Button(knop_frame, text="Volgende", command=volgende_stap,
                       font=("Georgia", 14), bg="#246a41", fg="white").pack()
 
         elif stap["index"] == 1:
-            # JA-demo stap: scoreboard in beeld
-            uitleg.config(
-                text="Klik op JA om extra punten te krijgen!\n"
-                     "Ik laat je zien wat er gebeurt..."
-            )
-            speler_demo.pack(pady=5)
-            computer_demo.pack(pady=5)
+            uitleg.config(text="Klik op JA om extra punten te krijgen!\n"
+                               "Ik laat je zien wat er gebeurt...")
             tk.Button(knop_frame, text="JA", command=klik_ja_demo,
                       font=("Georgia", 14), bg="#246a41", fg="white").pack()
 
         elif stap["index"] == 2:
-            # NEE-demo stap: scoreboard blijft zichtbaar
-            uitleg.config(
-                text="Klik op NEE als je denkt dat je al dichter bij 30 zit.\n"
-                     "Dan krijgt de computer nog punten."
-            )
-            speler_demo.pack(pady=5)
-            computer_demo.pack(pady=5)
+            uitleg.config(text="Klik op NEE als je denkt dat je al dichter bij 30 zit.\n"
+                               "Dan krijgt de computer nog punten.")
             tk.Button(knop_frame, text="NEE", command=klik_nee_demo,
                       font=("Georgia", 14), bg="#a93226", fg="white").pack()
 
         elif stap["index"] == 3:
-            # Afronding
-            uitleg.config(
-                text="Goed gedaan! Nu weet je hoe het werkt.\n"
-                     "Klaar om het echte spel te starten?"
-            )
-            tk.Button(knop_frame, text="Ja!", command=start_echt_spel,
-                      font=("Georgia", 14), bg="#3498db", fg="white").pack(side="left", padx=10)
-            tk.Button(knop_frame, text="Hell Jaaa!", command=start_echt_spel,
-                      font=("Georgia", 14), bg="#e67e22", fg="white").pack(side="left", padx=10)
+            uitleg.config(text="Goed gedaan! Nu weet je hoe het werkt.\n"
+                               "Klaar om het echte spel te starten?")
+            tk.Button(knop_frame, text="Start spel", command=start_echt_spel,
+                      font=("Georgia", 14), bg="#3498db", fg="white").pack()
 
-        # Naar volgende index voor de volgende keer dat we 'volgende_stap' aanroepen
         stap["index"] += 1
 
     def klik_ja_demo():
-        # Voorkom dubbelklikken: eerst knoppen weghalen
         clear_knoppen()
-
-        # Scores verhogen (speler én computer)
         extra_speler = random.randint(1, 6)
         extra_comp = random.randint(1, 6)
         scores["speler"] += extra_speler
@@ -466,39 +582,30 @@ def start_tutorial():
         speler_demo.config(text=f"Jouw score: {scores['speler']} (+{extra_speler})")
         computer_demo.config(text=f"Computer score: {scores['computer']} (+{extra_comp})")
         uitleg.config(text="Zie je? Jij en de computer kregen extra punten!")
-
-        # Eén duidelijke volgende-knop
         tk.Button(knop_frame, text="Volgende", command=volgende_stap,
                   font=("Georgia", 14), bg="#246a41", fg="white").pack()
 
     def klik_nee_demo():
-        # Voorkom dubbelklikken: eerst knoppen weghalen
         clear_knoppen()
-
-        # Alleen computer krijgt punten
         extra_comp = random.randint(1, 6)
         scores["computer"] += extra_comp
 
         computer_demo.config(text=f"Computer score: {scores['computer']} (+{extra_comp})")
         uitleg.config(text="Omdat je stopte, kreeg de computer extra punten.\n"
-                          "Jouw score bleef gelijk.\n\n" \
-                          "Nu bepaalt het spel wie er wint op basis van de scores!\n")
-
-        # Eén duidelijke volgende-knop
+                           "Jouw score bleef gelijk.\n\nNu bepaalt het spel wie er wint!")
         tk.Button(knop_frame, text="Volgende", command=volgende_stap,
                   font=("Georgia", 14), bg="#246a41", fg="white").pack()
 
     def start_echt_spel():
         tutorial_frame.pack_forget()
-        naam_frame.pack_forget()
-        naam_frame.place_forget()
+        tutorial_frame.place_forget()
         regels_frame.pack_forget()
-
         start_game()
 
-    # Start met de allereerste ‘Yes’ knop (intro-scherm)
+    # Start met eerste knop
     tk.Button(knop_frame, text="Yes", command=volgende_stap,
               font=("Georgia", 14), bg="#246a41", fg="white").pack()
+
 
 
 def toon_welkom_scherm(bericht, image=None):

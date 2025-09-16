@@ -1,337 +1,328 @@
+import email
 import tkinter as tk
 import random
-from PIL import Image, ImageTk, ImageOps  
+from PIL import Image, ImageTk
 import tkinter.messagebox as messagebox
 import sqlite3
 
-# tkinter is de standaard GUI-module van Python. Hiermee maak je vensters, knoppen, labels, frames, enz.
-# random gebruiken we om willekeurige getallen te genereren voor speler en computer, bijvoorbeeld random.randint(0,10).
 
-# Beginwaarden
+#  ██████  ██████  ███    ██ ███████ ██  ██████  
+# ██      ██    ██ ████   ██ ██      ██ ██       
+# ██      ██    ██ ██ ██  ██ █████   ██ ██   ███ 
+# ██      ██    ██ ██  ██ ██ ██      ██ ██    ██ 
+#  ██████  ██████  ██   ████ ██      ██  ██████  
+
+IMG_BG = r"C:\Users\somar\OneDrive\Fontys\20141221_JacksCasino-Groningen_051-1563-1600x1060.jpg"
+IMG_WIN = r"c:\Users\somar\OneDrive\Fontys\Emoji's\star-struck.png"
+IMG_LOSE = r"c:\Users\somar\OneDrive\Fontys\Emoji's\smiling_face_with_tear.png"
+IMG_DRAW = r"c:\Users\somar\OneDrive\Fontys\Emoji's\shaking_face.png"
+IMG_RULES = r"c:\Users\somar\OneDrive\Fontys\Emoji's\bookmark_tabs.png"
+
+
+# ██████   █████  ████████  █████  ██████   █████  ███████ ███████ 
+# ██   ██ ██   ██    ██    ██   ██ ██   ██ ██   ██ ██      ██      
+# ██   ██ ███████    ██    ███████ ██████  ███████ ███████ █████   
+# ██   ██ ██   ██    ██    ██   ██ ██   ██ ██   ██      ██ ██      
+# ██████  ██   ██    ██    ██   ██ ██████  ██   ██ ███████ ███████ 
+                                                                 
+                                                                 
+conn = sqlite3.connect("blackjack30.db")
+c = conn.cursor()
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS spelers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    naam TEXT NOT NULL,
+    leeftijd INTEGER NOT NULL,
+    overwinningen INTEGER DEFAULT 0,
+    email TEXT UNIQUE
+)
+""")
+
+# veilige ALTERs voor bestaande DB's
+try:
+    c.execute("ALTER TABLE spelers ADD COLUMN credits INTEGER DEFAULT 0")
+except sqlite3.OperationalError:
+    pass
+try:
+    c.execute("ALTER TABLE spelers ADD COLUMN selected_skin TEXT")
+except sqlite3.OperationalError:
+    pass
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS skins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
+    naam TEXT NOT NULL,
+    prijs INTEGER NOT NULL,
+    icon TEXT NOT NULL
+)
+""")
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS speler_skins (
+    speler_id INTEGER NOT NULL,
+    skin_code TEXT NOT NULL,
+    PRIMARY KEY (speler_id, skin_code),
+    FOREIGN KEY (speler_id) REFERENCES spelers(id),
+    FOREIGN KEY (skin_code) REFERENCES skins(code)
+)
+""")
+
+# seed skins (1x)
+for code, naam, prijs, icon in [
+    ("crown", "Kroon", 25, "👑"),
+    ("star", "Ster", 20, "⭐"),
+    ("dragon", "Draak", 25, "🐉"),
+    ("lion",   "Leeuw", 30, "🦁"),
+    ("wesen",  "Wezen", 35, "👽"),
+    ("horse",  "Paard", 35, "🐴"),
+    ("sloth", "Luiaard", 40, "🦥"),
+    ("owl",    "Uil",  40, "🦉"),
+    ("fox",    "Vos",  45, "🦊"),
+    ("wolf",   "Wolf", 50, "🐺"),
+    ("tiger",  "Tijger", 50, "🐯"),
+]:
+    try:
+        c.execute("INSERT INTO skins (code, naam, prijs, icon) VALUES (?,?,?,?)", (code, naam, prijs, icon))
+    except sqlite3.IntegrityError:
+        pass
+
+conn.commit()
+
+# ==========================
+# STATE
+# ==========================
 speler_score = 0
 computer_score = 0
 speler_naam = ""
 speler_leeftijd = 0
 speler_email = ""
 
-# Houdt de huidige score van speler en computer bij.
-# speler_naam wordt ingevuld door de gebruiker via een input.
+speler_id = None
+speler_wins = 0
+speler_credits = 0
+speler_rang = 0
+geselecteerde_skin = None
 
-#DATABASE
-conn = sqlite3.connect("blackjack30.db")
-c = conn.cursor()
-
-
-c.execute("""
-CREATE TABLE if not exists spelers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    naam TEXT NOT NULL,
-    leeftijd INTEGER NOT NULL,
-    overwinningen INTEGER DEFAULT 0,
-    email TEXT UNIQUE
-);
-""")
-conn.commit()
-
-
-# # # # Verwijder alle spelers uit de database (voor testen)
-# c.execute("DELETE FROM spelers")
-# conn.commit()
-# print("Alle spelers zijn verwijderd uit de database.")
-
-# # # # Reset AUTOINCREMENT
-# c.execute("DELETE FROM sqlite_sequence WHERE name='spelers'")
-# conn.commit()
-# print("Alle id's zijn gereset.")
-
-# Doel: de labels in de GUI bijwerken met de actuele scores.
-# config() verandert de tekst van een label.
-# Wordt altijd aangeroepen nadat scores veranderen.
-# Functies
+# ==========================
+# FUNCTIES – HELPER / DB
+# ==========================
 def update_labels():
     speler_label.config(text=f"{speler_naam}'s score: {speler_score}")
     computer_label.config(text=f"Computer score: {computer_score}")
 
-# Haalt naam en leeftijd op uit invoervelden, valideert ze.
-# Naam mag niet leeg zijn of alleen uit cijfers bestaan.
-# Leeftijd moet een positief getal zijn tussen 1 en 116.
+def get_skin_prefix():
+    if not geselecteerde_skin:
+        return ""
+    c.execute("SELECT icon FROM skins WHERE code = ?", (geselecteerde_skin,))
+    r = c.fetchone()
+    return r[0] if r else ""
+
+def get_speler_stats():
+    global speler_id, speler_naam, speler_wins, speler_credits, speler_rang, geselecteerde_skin
+    c.execute("SELECT id, naam, overwinningen, credits, selected_skin FROM spelers WHERE email = ?", (speler_email,))
+    rij = c.fetchone()
+    if rij:
+        speler_id, speler_naam, speler_wins, speler_credits, geselecteerde_skin = rij
+    else:
+        speler_wins = 0
+        speler_credits = 0
+        speler_rang = 0
+        geselecteerde_skin = None
+
+    c.execute("SELECT COUNT(*) FROM spelers WHERE overwinningen > ?", (speler_wins,))
+    hoger = c.fetchone()[0]
+    speler_rang = hoger + 1
+
+    speler_info_label.config(
+        text=f"{get_skin_prefix()}  {speler_naam} | 🏆 Win: {speler_wins} | 💰 Credits: {speler_credits} | 📊 Rang: {speler_rang}"
+    )
+    speler_label.config(text=f"{speler_naam}'s score: {speler_score}")
+
+# ==========================
+# FUNCTIES – AUTH / FLOW
+# ==========================
 def bevestig_gegevens():
     global speler_naam, speler_leeftijd, speler_email
+
     naam = naam_entry.get().strip()
     leeftijd_s = leeftijd_entry.get().strip()
-    email = email_entry.get().strip().lower()  # e-mail altijd in kleine letters opslaan
+    email = email_entry.get().strip().lower()
 
-    # Validatie naam
     if naam == "" or naam.isdigit():
         fout_label.config(text="Voer een geldige naam in (niet leeg, niet alleen cijfers).")
         return
 
-    # Validatie leeftijd
     if not leeftijd_s.isdigit():
         fout_label.config(text="Voer een geldige leeftijd in (cijfers).")
         return
     leeftijd = int(leeftijd_s)
-    if leeftijd <= 0 or leeftijd > 116: #Omdat de oudste mens ooit 116 jaar is geworden
+    if leeftijd <= 0 or leeftijd > 116:
         fout_label.config(text="Leeftijd moet tussen 1 en 116 liggen.")
         return
     if leeftijd < 18:
-        toon_jongScherm()
+        toon_jong_scherm()
         return
 
-    # Validatie e-mail
     if email == "" or "@" not in email or "." not in email:
         fout_label.config(text="Voer een geldig e-mailadres in.")
         return
 
-    # Validatie OK → reset foutmelding
     fout_label.config(text="")
-
     speler_naam = naam
     speler_leeftijd = leeftijd
     speler_email = email
 
-    # Check of het e-mailadres al in de database staat
-    c.execute("SELECT id, naam, overwinningen FROM spelers WHERE email = ?", (speler_email,))
-    rij = c.fetchone()
-
-    if rij:
-        # Email bestaat al → foutmelding + knop terug naar login
+    c.execute("SELECT id FROM spelers WHERE email = ?", (speler_email,))
+    if c.fetchone():
         fout_label.config(text="Dit e-mailadres is al geregistreerd.")
-
-        terug_knop = tk.Button(
-            naam_frame,
-            text="Terug naar inloggen",
-            font=("Georgia", 12),
-            bg="#3498db",
-            fg="white",
+        tk.Button(
+            naam_frame, text="Terug naar inloggen", font=("Georgia", 12),
+            bg="#3498db", fg="white",
             command=lambda: [naam_frame.pack_forget(), toon_emailcheck_scherm()]
-        )
-        terug_knop.pack(pady=5)
-        return  # heel belangrijk: STOP hier, ga niet verder
+        ).pack(pady=5)
+        return
 
-    # Nieuwe speler → invoegen
     try:
-        c.execute(
-            "INSERT INTO spelers (naam, leeftijd, email) VALUES (?, ?, ?)",
-            (speler_naam, speler_leeftijd, speler_email),
-        )
+        c.execute("INSERT INTO spelers (naam, leeftijd, email) VALUES (?, ?, ?)", (speler_naam, speler_leeftijd, speler_email))
         conn.commit()
-        naam_frame.pack_forget()   # alleen verbergen als insert gelukt is
+        naam_frame.pack_forget()
+        naam_frame.place_forget()
         start_tutorial()
     except sqlite3.IntegrityError:
         fout_label.config(text="Dit e-mailadres is al geregistreerd.")
 
-    # Toon een knop om naar login terug te gaan
-    def terug_naar_login():
-        naam_frame.pack_forget()
-        toon_emailcheck_scherm()
-
-    terug_knop = tk.Button(
-        naam_frame,
-        text="Ga naar login",
-        font=("Georgia", 12),
-        bg="#3498db",
-        fg="white",
-        command=terug_naar_login
-    )
-    terug_knop.pack(pady=5)
-
-
-
-
-# Toon een scherm dat aangeeft dat de speler te jong is.
-# Verberg het naam-frame en maak een nieuw frame met een bericht en een sluit-knop
-def toon_jongScherm():
+def toon_jong_scherm():
     naam_frame.pack_forget()
+    naam_frame.place_forget()
     sorry_frame = tk.Frame(venster, bg="#222222")
     sorry_frame.pack(expand=True, fill='both')
 
-    sorry_label = tk.Label(
+    tk.Label(
         sorry_frame,
         text="SORRY, je moet 18 jaar of ouder zijn om dit spel te mogen spelen.",
         font=("Georgia", 18, "bold"),
-        fg="red",
-        bg="#222222",
-        wraplength=500,   # zodat tekst niet te breed wordt
-        justify="center"
-    )
-    # Zet label exact in het midden van sorry_frame
-    sorry_label.place(relx=0.5, rely=0.4, anchor="center")
+        fg="red", bg="#222222", wraplength=500, justify="center"
+    ).place(relx=0.5, rely=0.4, anchor="center")
 
-    sluit_knop = tk.Button(
-        sorry_frame,
-        text="Sluit",
-        command=venster.quit,
-        font=("Georgia", 14),
-        bg="#e74c3c",
-        fg="white"
-    )
-    sluit_knop.place(relx=0.5, rely=0.7, anchor="center")  # knop iets lager
-
+    tk.Button(sorry_frame, text="Sluit", command=venster.quit, font=("Georgia", 14), bg="#e74c3c", fg="white")\
+        .place(relx=0.5, rely=0.7, anchor="center")
 
 def toon_emailcheck_scherm():
     email_frame = tk.Frame(venster, bg="#222222", bd=10, relief="ridge", width=600, height=600)
     email_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-    # Titel net als bij registratie
-    titel = tk.Label(email_frame, text="Login met e-mailadres", 
-                     font=("Georgia", 18, "bold"), fg="gold", bg="#222222")
-    titel.pack(pady=20)
-
-    # E-mail invoer
-    tk.Label(email_frame, text="Voer je e-mailadres in:", font=("Georgia", 14),
-             bg="#222222", fg="white").pack(pady=10)
+    tk.Label(email_frame, text="Login met e-mailadres", font=("Georgia", 18, "bold"), fg="gold", bg="#222222").pack(pady=20)
+    tk.Label(email_frame, text="Voer je e-mailadres in:", font=("Georgia", 14), bg="#222222", fg="white").pack(pady=10)
 
     email_entry_check = tk.Entry(email_frame, font=("Georgia", 14), width=20)
     email_entry_check.pack(pady=10)
 
-    fout_label_check = tk.Label(email_frame, text="", font=("Georgia", 11),
-                                bg="#222222", fg="red")
+    fout_label_check = tk.Label(email_frame, text="", font=("Georgia", 11), bg="#222222", fg="red")
     fout_label_check.pack(pady=5)
 
     def bevestig_email():
-        global speler_email
+        global speler_email, speler_credits
         email = email_entry_check.get().strip().lower()
-        speler_email = email  # Globale variabele bijwerken
+        speler_email = email
+
+        rij = c.execute("SELECT credits FROM spelers WHERE email = ?", (email,)).fetchone()
+        if not rij:
+            fout_label_check.config(text="E-mailadres niet gevonden. Registreer of probeer opnieuw.")
+            return
+        speler_credits = rij[0]
+
         c.execute("SELECT naam, overwinningen FROM spelers WHERE email = ?", (email,))
         rij = c.fetchone()
-        if rij:
-            naam, mijn_wins = rij
-
-                # Bereken ranking van speler
-            c.execute("SELECT COUNT(*) FROM spelers WHERE overwinningen > ?", (mijn_wins,))
-            hoger = c.fetchone()[0]
-            rang = hoger + 1
-
-            # Beste speler ophalen
-            c.execute("SELECT naam, overwinningen FROM spelers ORDER BY overwinningen DESC LIMIT 1")
-            beste = c.fetchone()
-            if beste and beste[0] != naam:
-                extra = f"\nDe beste speler heeft {beste[1]} overwinningen!"
-            else:
-                extra = ""
-
-            fout_label_check.config(text="")
-            email_frame.destroy()
-            toon_welkom_scherm(
-                f"Welkom terug, {naam}!\n\n"
-                f"Keer gewonnen: {mijn_wins}\n"
-                f"Jou ranking in de ranglijst is: {rang}"
-                f"{extra}"
-            )
-        else:
+        if not rij:
             fout_label_check.config(text="E-mailadres niet gevonden. Registreer of probeer opnieuw.")
+            return
+
+        naam, mijn_wins = rij
+        c.execute("SELECT COUNT(*) FROM spelers WHERE overwinningen > ?", (mijn_wins,))
+        rang = c.fetchone()[0] + 1
+
+        c.execute("SELECT naam, overwinningen FROM spelers ORDER BY overwinningen DESC LIMIT 1")
+        beste = c.fetchone()
+        extra = f"\nDe beste speler heeft {beste[1]} overwinningen!" if beste and beste[0] != naam else ""
+
+        fout_label_check.config(text="")
+        email_frame.destroy()
+        toon_welkom_scherm(
+            f"Welkom terug, {naam}!\n\nKeer gewonnen: {mijn_wins}\nJouw ranking: {rang}{extra}\nJouw credits: {speler_credits}"
+        )
 
     def ga_naar_registratie():
         email_frame.destroy()
         naam_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-    # Knoppen
-    button_frame = tk.Frame(email_frame, bg="#222222")
-    button_frame.pack(pady=20)
-
-    tk.Button(button_frame, text="Inloggen", font=("Georgia", 14), 
-          bg="#246a41", fg="white", command=bevestig_email, width=12).grid(row=0, column=1, padx=10)
-
-    tk.Button(button_frame, text="Registreren", font=("Georgia", 14),
-          bg="#3498db", fg="white", command=ga_naar_registratie, width=12).grid(row=1, column=1, padx=10,pady=10)
-
-
-    def bevestig_email():
-        email = email_entry_check.get().strip().lower()
-        c.execute("SELECT naam, overwinningen FROM spelers WHERE email = ?", (email,))
-        rij = c.fetchone()
-        if rij:
-            naam, wins = rij
-            fout_label_check.config(text="")
-            email_frame.pack_forget()
-            toon_welkom_scherm(
-                f"Welkom terug, {naam}!\n"
-                f"Je hebt al {wins} keer gewonnen!"
-            )
-        else:
-            fout_label_check.config(text="E-mailadres niet gevonden. Registreer eerst.")
-
-    # tk.Button(email_frame, text="Bevestig", font=("Georgia", 14), bg="#246a41", fg="white",
-    #           command=bevestig_email).pack(pady=20)
-
+    bf = tk.Frame(email_frame, bg="#222222"); bf.pack(pady=20)
+    tk.Button(bf, text="Inloggen", font=("Georgia", 14), bg="#246a41", fg="white",
+              command=bevestig_email, width=12).grid(row=0, column=1, padx=10)
+    tk.Button(bf, text="Registreren", font=("Georgia", 14), bg="#3498db", fg="white",
+              command=ga_naar_registratie, width=12).grid(row=1, column=1, padx=10, pady=10)
 
 def start_inlogscherm():
     inlog_frame = tk.Frame(venster, bg="#222222", bd=10, relief="ridge")
     inlog_frame.place(relx=0.5, rely=0.5, anchor="center")
     inlog_frame.config(width=600, height=600)
 
-    # Titel net als naam_frame
-    vraag_label = tk.Label(
-        inlog_frame,
-        text="Welkom bij Blackjack 30!\n\nHeb je het spel al eerder gespeeld?",
-        font=("Georgia", 18, "bold"),
-        fg="gold",
-        bg="#222222"
-    )
-    vraag_label.pack(pady=20)
+    tk.Label(inlog_frame, text="Welkom bij Blackjack 30!\n\nHeb je het spel al eerder gespeeld?",
+             font=("Georgia", 18, "bold"), fg="gold", bg="#222222").pack(pady=20)
 
-    # Knoppen
-    button_frame = tk.Frame(inlog_frame, bg="#222222")
-    button_frame.pack(pady=20)
+    bf = tk.Frame(inlog_frame, bg="#222222"); bf.pack(pady=20)
 
     def ga_naar_invoer():
-        inlog_frame.destroy() 
-        naam_frame.pack(pady=40)   # toon registratie
+        inlog_frame.destroy()
+        naam_frame.pack(pady=40)
 
     def ga_naar_emailcheck():
         inlog_frame.destroy()
         toon_emailcheck_scherm()
 
-    tk.Button(button_frame, text="Ja", font=("Georgia", 14),
-              bg="#246a41", fg="white",
-              command=ga_naar_emailcheck,
-              width=12).grid(row=0, column=0, padx=20)
+    tk.Button(bf, text="Ja", font=("Georgia", 14), bg="#246a41", fg="white",
+              command=ga_naar_emailcheck, width=12).grid(row=0, column=0, padx=20)
+    tk.Button(bf, text="Nee", font=("Georgia", 14), bg="#a93226", fg="white",
+              command=ga_naar_invoer, width=12).grid(row=0, column=1, padx=20)
 
-    tk.Button(button_frame, text="Nee", font=("Georgia", 14),
-              bg="#a93226", fg="white",
-              command=ga_naar_invoer,
-              width=12).grid(row=0, column=1, padx=20)
+def toon_welkom_scherm(bericht, image=None):
+    welkom = tk.Frame(venster, bg="#222222")
+    welkom.pack(expand=True, fill="both")
+    center = tk.Frame(welkom, bg="#222222"); center.place(relx=0.5, rely=0.5, anchor="center")
+    tk.Label(center, text=bericht, font=("Georgia", 18, "bold"), bg="#222222", fg="gold",
+             image=image, compound="right").pack(pady=20)
+    tk.Button(center, text="Verder", font=("Georgia", 14), bg="#246a41", fg="white",
+              command=lambda: ga_naar_regels(welkom)).pack(pady=10)
 
+def ga_naar_regels(frame):
+    frame.pack_forget()
+    regels_frame.pack(pady=20)
+    regels_frame.place(relx=0.5, rely=0.4, anchor="center")
 
+# ==========================
+# FUNCTIES – TUTORIAL
+# ==========================
 def start_tutorial():
     naam_frame.pack_forget()
 
-    tutorial_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge", width=700, height=400)
-    tutorial_frame.pack(pady=20)
-    tutorial_frame.place(relx=0.5, rely=0.4, anchor="center")
+    tutorial = tk.Frame(venster, bg="#222222", bd=5, relief="ridge", width=700, height=400)
+    tutorial.pack(pady=20)
+    tutorial.place(relx=0.5, rely=0.4, anchor="center")
 
-    # Scorebord bovenaan (zoals in game_frame)
-    score_frame = tk.Frame(tutorial_frame, bg="#222222")
-    score_frame.pack(pady=10)
-
-    speler_demo = tk.Label(score_frame, text="Jouw score: 0", font=("Georgia", 18, "bold"),
-                           fg="#77b8e3", bg="#222222")
+    score_bord = tk.Frame(tutorial, bg="#222222"); score_bord.pack(pady=10)
+    speler_demo = tk.Label(score_bord, text="Jouw score: 0", font=("Georgia", 18, "bold"), fg="#77b8e3", bg="#222222")
     speler_demo.grid(row=0, column=0, padx=20)
-
-    computer_demo = tk.Label(score_frame, text="Computer score: 0", font=("Georgia", 18, "bold"),
-                             fg="#e08d85", bg="#222222")
+    computer_demo = tk.Label(score_bord, text="Computer score: 0", font=("Georgia", 18, "bold"), fg="#e08d85", bg="#222222")
     computer_demo.grid(row=0, column=1, padx=20)
 
-    # Vraag in het midden
-    uitleg = tk.Label(
-        tutorial_frame,
-        text="Welkom bij Blackjack 30!\n\nDit spel is ontworpen voor jou.\nKlaar voor een snelle tutorial?",
-        font=("Georgia", 16), fg="gold", bg="#222222",
-        wraplength=600, justify="center"
-    )
+    uitleg = tk.Label(tutorial, text="Welkom bij Blackjack 30!\n\nDit spel is ontworpen voor jou.\nKlaar voor een snelle tutorial?",
+                      font=("Georgia", 16), fg="gold", bg="#222222", wraplength=600, justify="center")
     uitleg.pack(pady=20)
+    resultaat_demo = tk.Label(tutorial, text="", font=("Georgia", 18, "bold"), bg="#222222"); resultaat_demo.pack(pady=10)
 
-    # Resultaat-label (zoals in echt spel)
-    resultaat_demo = tk.Label(tutorial_frame, text="", font=("Georgia", 18, "bold"), bg="#222222")
-    resultaat_demo.pack(pady=10)
-
-    # Knoppen onderaan
-    knop_frame = tk.Frame(tutorial_frame, bg="#222222")
-    knop_frame.pack(pady=20)
-
-    scores = {"speler": 0, "computer": 0}
-    stap = {"index": 0}
+    knop_frame = tk.Frame(tutorial, bg="#222222"); knop_frame.pack(pady=20)
+    scores = {"speler": 0, "computer": 0}; stap = {"index": 0}
 
     def clear_knoppen():
         for w in knop_frame.winfo_children():
@@ -339,31 +330,18 @@ def start_tutorial():
 
     def volgende_stap():
         clear_knoppen()
-
         if stap["index"] == 0:
-            uitleg.config(text="In dit spel probeer je zo dicht mogelijk bij 30 te komen.\n"
-                               "Ga je boven de 30, dan verlies je.")
-            tk.Button(knop_frame, text="Volgende", command=volgende_stap,
-                      font=("Georgia", 14), bg="#246a41", fg="white").pack()
-
+            uitleg.config(text="In dit spel probeer je zo dicht mogelijk bij 30 te komen.\nGa je boven de 30, dan verlies je.")
+            tk.Button(knop_frame, text="Volgende", command=volgende_stap, font=("Georgia", 14), bg="#246a41", fg="white").pack()
         elif stap["index"] == 1:
-            uitleg.config(text="Klik op JA om extra punten te krijgen!\n"
-                               "Ik laat je zien wat er gebeurt...")
-            tk.Button(knop_frame, text="JA", command=klik_ja_demo,
-                      font=("Georgia", 14), bg="#246a41", fg="white").pack()
-
+            uitleg.config(text="Klik op JA om extra punten te krijgen!\nIk laat je zien wat er gebeurt...")
+            tk.Button(knop_frame, text="JA", command=klik_ja_demo, font=("Georgia", 14), bg="#246a41", fg="white").pack()
         elif stap["index"] == 2:
-            uitleg.config(text="Klik op NEE als je denkt dat je al dichter bij 30 zit.\n"
-                               "Dan krijgt de computer nog punten.")
-            tk.Button(knop_frame, text="NEE", command=klik_nee_demo,
-                      font=("Georgia", 14), bg="#a93226", fg="white").pack()
-
+            uitleg.config(text="Klik op NEE als je denkt dat je al dichter bij 30 zit.\nDan krijgt de computer nog punten.")
+            tk.Button(knop_frame, text="NEE", command=klik_nee_demo, font=("Georgia", 14), bg="#a93226", fg="white").pack()
         elif stap["index"] == 3:
-            uitleg.config(text="Goed gedaan! Nu weet je hoe het werkt.\n"
-                               "Klaar om het echte spel te starten?")
-            tk.Button(knop_frame, text="Start spel", command=start_echt_spel,
-                      font=("Georgia", 14), bg="#3498db", fg="white").pack()
-
+            uitleg.config(text="Goed gedaan! Nu weet je hoe het werkt.\nKlaar om het echte spel te starten?")
+            tk.Button(knop_frame, text="Start spel", command=start_echt_spel, font=("Georgia", 14), bg="#3498db", fg="white").pack()
         stap["index"] += 1
 
     def klik_ja_demo():
@@ -372,390 +350,293 @@ def start_tutorial():
         extra_comp = random.randint(1, 6)
         scores["speler"] += extra_speler
         scores["computer"] += extra_comp
-
         speler_demo.config(text=f"Jouw score: {scores['speler']} (+{extra_speler})")
         computer_demo.config(text=f"Computer score: {scores['computer']} (+{extra_comp})")
         uitleg.config(text="Zie je? Jij en de computer kregen extra punten!")
-        tk.Button(knop_frame, text="Volgende", command=volgende_stap,
-                  font=("Georgia", 14), bg="#246a41", fg="white").pack()
+        tk.Button(knop_frame, text="Volgende", command=volgende_stap, font=("Georgia", 14), bg="#246a41", fg="white").pack()
 
     def klik_nee_demo():
         clear_knoppen()
         extra_comp = random.randint(1, 6)
         scores["computer"] += extra_comp
-
         computer_demo.config(text=f"Computer score: {scores['computer']} (+{extra_comp})")
-        uitleg.config(text="Omdat je stopte, kreeg de computer extra punten.\n"
-                           "Jouw score bleef gelijk.\n\nNu bepaalt het spel wie er wint!")
-        tk.Button(knop_frame, text="Volgende", command=volgende_stap,
-                  font=("Georgia", 14), bg="#246a41", fg="white").pack()
+        uitleg.config(text="Omdat je stopte, kreeg de computer extra punten.\nJouw score bleef gelijk.\n\nNu bepaalt het spel wie er wint!")
+        tk.Button(knop_frame, text="Volgende", command=volgende_stap, font=("Georgia", 14), bg="#246a41", fg="white").pack()
 
     def start_echt_spel():
-        tutorial_frame.pack_forget()
-        tutorial_frame.place_forget()
-        regels_frame.pack_forget()
+        tutorial.pack_forget(); tutorial.place_forget(); regels_frame.pack_forget()
         start_game()
 
-    # Start met eerste knop
-    tk.Button(knop_frame, text="Yes", command=volgende_stap,
-              font=("Georgia", 14), bg="#246a41", fg="white").pack()
+    tk.Button(knop_frame, text="Yes", command=volgende_stap, font=("Georgia", 14), bg="#246a41", fg="white").pack()
 
+# ███████ ██    ██ ███    ██  ██████ ████████ ██ ███████ ███████     
+# ██      ██    ██ ████   ██ ██         ██    ██ ██      ██          
+# █████   ██    ██ ██ ██  ██ ██         ██    ██ █████   ███████     
+# ██      ██    ██ ██  ██ ██ ██         ██    ██ ██           ██     
+# ██       ██████  ██   ████  ██████    ██    ██ ███████ ███████     
 
+# █████ █████ █████ █████ █████ █████ █████ █████ 
 
-def toon_welkom_scherm(bericht, image=None):
-    welkom = tk.Frame(venster, bg="#222222")
-    welkom.pack(expand=True, fill="both")
-
-    center_frame = tk.Frame(welkom, bg="#222222")
-    center_frame.place(relx=0.5, rely=0.5, anchor="center")
-
-    label = tk.Label(center_frame, text=bericht, font=("Georgia", 18, "bold"),
-                     bg="#222222", fg="gold", image=image, compound="right")
-    label.pack(pady=20)
-
-    tk.Button(center_frame, text="Verder", font=("Georgia", 14),
-              bg="#246a41", fg="white",
-              command=lambda: ga_naar_regels(welkom)).pack(pady=10)
-
-
-
-def ga_naar_regels(frame):
-    frame.pack_forget()
-    regels_frame.pack(pady=20)
-    regels_frame.place(relx=0.5, rely=0.4, anchor="center")   
-    
-
-
-# Verberg de regels en toon het game-frame.
-# Genereer willekeurige startwaarden voor speler en computer tussen 0–10.
-# update_labels() toont de scores in de GUI.
-# De knop “Opnieuw spelen” wordt uitgeschakeld aan het begin van het spel.
+#  ██████   █████  ███    ███ ███████ 
+# ██       ██   ██ ████  ████ ██      
+# ██   ███ ███████ ██ ████ ██ █████   
+# ██    ██ ██   ██ ██  ██  ██ ██      
+#  ██████  ██   ██ ██      ██ ███████ 
+                                    
+                                    
 def start_game():
     global speler_score, computer_score
-    regels_frame.pack_forget()
-    regels_frame.place_forget()
-    game_frame.pack(pady=20)
-    game_frame.place(relx=0.5, rely=0.4, anchor="center")
-
-    speler_score = random.randint(0, 6)
-    computer_score = random.randint(0, 6)
+    regels_frame.pack_forget(); regels_frame.place_forget()
+    game_frame.pack(pady=20); game_frame.place(relx=0.5, rely=0.4, anchor="center")
+    speler_score = random.randint(0, 6); computer_score = random.randint(0, 6)
     update_labels()
-
-    # 🔥 Update speler stats bovenaan
     get_speler_stats()
-    speler_info_label.config(
-        text=f"👤 {speler_naam} | 🏆 {speler_wins} overwinningen | 📊 Rang: {speler_rang}"
-    )
-
     knop_opnieuw.config(state="disabled")
 
-def get_speler_stats():
-    global speler_naam, speler_wins, speler_rang
-
-    # Aantal overwinningen ophalen
-    c.execute("SELECT naam, overwinningen FROM spelers WHERE email = ?", (speler_email,))
-    rij = c.fetchone()
-    if rij:
-        speler_naam, speler_wins = rij
-    else:
-        speler_wins = 0
-
-    # Ranking bepalen
-    c.execute("SELECT COUNT(*) FROM spelers WHERE overwinningen > ?", (speler_wins,))
-    hoger = c.fetchone()[0]
-    speler_rang = hoger + 1
-
-    # Label updaten
-    speler_info_label.config(
-        text=f"👤 {speler_naam} | 🏆 {speler_wins} overwiningen | 📊 Rang: {speler_rang}"
-    )
-
-# Boven 20 → beperkt risico:
-# Als speler/computer ≥ 20 is, worden random getallen toegevoegd tussen 0–3 in plaats van 0–10.
-# Update GUI: scores worden meteen zichtbaar.
-# Directe winstcheck:
-# Exact 30 is een onmiddellijke overwinning.
-# Stop de knoppen met disable_buttons().
-# Check winnaars: als niemand exact 30 heeft, ga verder met reguliere wincheck (check_winner()).
 def klik_ja():
-    global speler_score
-    global computer_score
-
-    # Bepaal range voor speler
-    if speler_score >= 20:
-        speler_score += random.randint(0, 3)
-    elif speler_score >= 28:
-        speler_score += random.randint(0, 1)
-    else:
-        speler_score += random.randint(0, 9)
-    
-    # Bepaal range voor computer
-    if computer_score >= 20:
-        computer_score += random.randint(0, 3)
-    elif computer_score >= 28:
-        computer_score += random.randint(0, 1)
-    else:
-        computer_score += random.randint(0, 9)
-    
+    global speler_score, computer_score
+    speler_score += random.randint(0, 3 if speler_score >= 20 else 9)
+    computer_score += random.randint(0, 3 if computer_score >= 20 else 9)
     update_labels()
-    
-    # Directe winstcheck bij 30
     if speler_score == 30:
-        resultaat_label.config(image=win_emoji, text="  Je hebt exact 30! Jij wint!", fg="green", compound="left")
-        disable_buttons()
-        c.execute("UPDATE spelers SET overwinningen = overwinningen + 1 WHERE email = ?", (speler_email,))
-        conn.commit()
+        win_speler("  Je hebt exact 30! Jij wint!")
         return
-    elif computer_score == 30:
-        resultaat_label.config(image=lose_emoji, text="  Computer heeft exact 30! Jij verliest!", fg="red", compound="left")
-        disable_buttons()
+    if computer_score == 30:
+        verlies_speler("  Computer heeft exact 30! Jij verliest!")
         return
-    
     check_winner()
 
-# Als je stopt, krijgt de computer nog één laatste beurt.
-# Scores worden aangepast volgens dezelfde regels (boven 20 → 0–3).
-# Directe winstcheck voor exact 30.
-# Als niemand precies 30 heeft, wordt de finale winnaar bepaald.
 def klik_nee():
     global computer_score
-    
-    # Extra beurt computer
-    if computer_score >= 20:
-        computer_score += random.randint(0, 3)
-        
-    elif computer_score >= 28:
-        computer_score += random.randint(0, 1)    
-
-    else:
-        computer_score += random.randint(0, 9)
-        
-    
+    computer_score += random.randint(0, 3 if computer_score >= 20 else 9)
     update_labels()
-    
-    # Directe winstcheck bij 30
     if computer_score == 30:
-        resultaat_label.config(image=lose_emoji, text="  Computer heeft exact 30! Jij verliest!", fg="red", compound="left")
-        disable_buttons()
+        verlies_speler("  Computer heeft exact 30! Jij verliest!")
         return
-    elif speler_score == 30:
-        resultaat_label.config(image=win_emoji, text="  Je hebt exact 30! Jij wint!", fg="green", compound="left")
-        disable_buttons()
+    if speler_score == 30:
+        win_speler("  Je hebt exact 30! Jij wint!")
         return
-    
     check_winner(final=True)
 
-# Beide boven 30 → gelijkspel.
-# Eén boven 30 → verlies/winst.
-# final=True → speler heeft gekozen te stoppen → dichtst bij 30 wint.
 def check_winner(final=False):
     if speler_score > 30 and computer_score > 30:
-        resultaat_label.config(image=draw_emoji, text="  Beide boven de 30! Gelijkspel!", fg="blue", compound="left")
-        disable_buttons()
-    elif speler_score > 30:
-        resultaat_label.config(image=lose_emoji, text="  Je bent boven de 30! Je verliest.", fg="red", compound="left")
-        disable_buttons()
-    elif computer_score > 30:
-        resultaat_label.config(image=win_emoji, text="  Computer is boven de 30! Jij wint!", fg="green", compound="left")
-        disable_buttons()
-        c.execute("UPDATE spelers SET overwinningen = overwinningen + 1 WHERE email = ?", (speler_email,))
-        conn.commit()
-        get_speler_stats()
-    elif final:
-        if abs(30 - speler_score) < abs(30 - computer_score):
-            resultaat_label.config(image=win_emoji, text="  Je wint!", fg="green", compound="left")
-            c.execute("UPDATE spelers SET overwinningen = overwinningen + 1 WHERE email = ?", (speler_email,))
-            conn.commit()
-            get_speler_stats()
-        elif abs(30 - speler_score) > abs(30 - computer_score):
-            resultaat_label.config(image=lose_emoji, text="  Computer wint!", fg="red", compound="left")
-        else:
-            resultaat_label.config(image=draw_emoji, text="  Gelijkspel!", fg="blue", compound="left")
-        disable_buttons()
+        gelijkspel("  Beide boven de 30! Gelijkspel!")
+        return
+    if speler_score > 30:
+        verlies_speler("  Je bent boven de 30! Je verliest.")
+        return
+    if computer_score > 30:
+        win_speler("  Computer is boven de 30! Jij wint!")
+        return
 
-# Knoppen “Ja” en “Nee” worden uitgeschakeld.
-# Knop “Opnieuw spelen” wordt beschikbaar.
+    if final:
+        ds = abs(30 - speler_score); dc = abs(30 - computer_score)
+        if ds < dc:
+            win_speler("  Je wint!")
+        elif ds > dc:
+            verlies_speler("  Computer wint!")
+        else:
+            gelijkspel("  Gelijkspel!")
+
+def win_speler(msg):
+    resultaat_label.config(image=win_emoji, text=msg, fg="green", compound="left")
+    c.execute("""
+        UPDATE spelers
+        SET overwinningen = overwinningen + 1,
+            credits = credits + 2
+        WHERE email = ?
+    """, (speler_email,))
+    conn.commit()
+    get_speler_stats()
+    disable_buttons()
+
+def verlies_speler(msg):
+    resultaat_label.config(image=lose_emoji, text=msg, fg="red", compound="left")
+    disable_buttons()
+
+def gelijkspel(msg):
+    resultaat_label.config(image=draw_emoji, text=msg, fg="blue", compound="left")
+    disable_buttons()
+
 def disable_buttons():
     knop_ja.config(state="disabled")
     knop_nee.config(state="disabled")
     knop_opnieuw.pack(pady=15)
     knop_opnieuw.config(state="normal")
 
-# Reset scores en GUI naar startpositie, zodat het spel opnieuw gespeeld kan worden.
 def opnieuw_spelen():
-    global speler_score
-    global computer_score
-    speler_score = 0
-    computer_score = 0
+    global speler_score, computer_score
+    speler_score = 0; computer_score = 0
     update_labels()
-    resultaat_label.config(text="", image="")  #  Reset afbeelding
-    game_frame.pack(pady=20)
-    game_frame.place(relx=0.5, rely=0.4, anchor="center")
-    # regels_frame.pack(pady=20)   # verwijder game scherm
+    resultaat_label.config(text="", image="")
     knop_ja.config(state="normal")
     knop_nee.config(state="normal")
-    knop_opnieuw.pack_forget()           # Knop weer verbergen
+    knop_opnieuw.pack_forget()
     knop_opnieuw.config(state="disabled")
 
 
-# Naam-frame
-# Hier voert de speler zijn naam in.
-# Labels, entry en bevestig-knop.
-# Wordt eerst getoond (pack()).
-# Spelregels-frame
-# Toont de regels van het spel.
-# Start-knop start het spel en verbergt dit frame.
-# Game-frame
-# Toont de scores van speler en computer.
-# “Ja” en “Nee” knoppen voor extra punten of stoppen.
-# Resultaat-label toont win/verlies/gelijkspel.
-# Knop “Opnieuw spelen” reset het spel.
+# ███████ ██    ██ ███    ██  ██████ ████████ ██ ███████ ███████     
+# ██      ██    ██ ████   ██ ██         ██    ██ ██      ██          
+# █████   ██    ██ ██ ██  ██ ██         ██    ██ █████   ███████     
+# ██      ██    ██ ██  ██ ██ ██         ██    ██ ██           ██     
+# ██       ██████  ██   ████  ██████    ██    ██ ███████ ███████     
 
-# --- GUI Setup --- #
+# █████ █████ █████ █████ █████ █████ █████ █████ 
+      
+# ███████ ██   ██  ██████  ██████  
+# ██      ██   ██ ██    ██ ██   ██ 
+# ███████ ███████ ██    ██ ██████  
+#      ██ ██   ██ ██    ██ ██      
+# ███████ ██   ██  ██████  ██      
+                                 
+
+def open_shop():
+    shop = tk.Toplevel(venster); shop.title("Skins shop"); shop.config(bg="#222222")
+    tk.Label(shop, text=f"💰 Jouw credits: {speler_credits}", font=("Georgia", 14, "bold"), fg="gold", bg="#222222").pack(pady=10)
+    lijst = tk.Frame(shop, bg="#222222"); lijst.pack(padx=12, pady=6)
+
+    c.execute("SELECT code, naam, prijs, icon FROM skins ORDER BY prijs ASC"); rows = c.fetchall()
+    c.execute("SELECT skin_code FROM speler_skins WHERE speler_id = ?", (speler_id,)); owned = {r[0] for r in c.fetchall()}
+
+    for code, naam, prijs, icon in rows:
+        rij = tk.Frame(lijst, bg="#333333", bd=1, relief="groove"); rij.pack(fill="x", pady=5)
+        tk.Label(rij, text=icon, font=("Georgia", 16), bg="#333333", fg="white").pack(side="left", padx=8)
+        tk.Label(rij, text=f"{naam} — {prijs} credits", font=("Georgia", 12), bg="#333333", fg="white").pack(side="left", padx=8)
+
+        if code in owned:
+            tk.Button(rij, text=("In gebruik" if code == geselecteerde_skin else "Gebruik"),
+                      font=("Georgia", 12), bg="#27ae60", fg="white",
+                      command=lambda c=code: equip_skin(c, shop)).pack(side="right", padx=8)
+        else:
+            tk.Button(rij, text="Koop", font=("Georgia", 12), bg="#2980b9", fg="white",
+                      command=lambda c=code, p=prijs: buy_skin(c, p, shop)).pack(side="right", padx=8)
+
+def buy_skin(code, prijs, shop):
+    global speler_credits
+    if speler_credits < prijs:
+        messagebox.showinfo("Onvoldoende credits", "Je hebt niet genoeg credits.")
+        return
+    c.execute("UPDATE spelers SET credits = credits - ? WHERE id = ?", (prijs, speler_id))
+    c.execute("INSERT OR IGNORE INTO speler_skins (speler_id, skin_code) VALUES (?,?)", (speler_id, code))
+    conn.commit()
+    speler_credits -= prijs
+    messagebox.showinfo("Succes", "Skin gekocht!")
+    shop.destroy(); open_shop()
+
+def equip_skin(code, shop=None):
+    global geselecteerde_skin
+    c.execute("SELECT 1 FROM speler_skins WHERE speler_id = ? AND skin_code = ?", (speler_id, code))
+    if not c.fetchone():
+        messagebox.showerror("Niet in bezit", "Je bezit deze skin niet.")
+        return
+    c.execute("UPDATE spelers SET selected_skin = ? WHERE id = ?", (code, speler_id)); conn.commit()
+    geselecteerde_skin = code
+    get_speler_stats()
+    if shop:
+        shop.destroy(); open_shop()
+
+
+#  ██████  ██    ██ ██ 
+# ██       ██    ██ ██ 
+# ██   ███ ██    ██ ██ 
+# ██    ██ ██    ██ ██ 
+#  ██████   ██████  ██ 
+
 venster = tk.Tk()
 venster.title("Blackjack 30")
 venster.geometry("700x600")
 venster.config(bg="#222222", bd=10, relief="ridge", width=600, height=600)
 
 def sluit_venster():
-    conn.close()
-    venster.destroy()
-
+    conn.close(); venster.destroy()
 venster.protocol("WM_DELETE_WINDOW", sluit_venster)
 
+# Achtergrond
+try:
+    bg_img = Image.open(IMG_BG).resize((800, 600))
+    achtergrond = ImageTk.PhotoImage(bg_img)
+    tk.Label(venster, image=achtergrond).place(relwidth=1, relheight=1)
+except Exception:
+    pass  # als achtergrond niet bestaat, gewoon overslaan
 
-# Achtergrond dynamisch schalen
-screen_width = venster.winfo_screenwidth()
-screen_height = venster.winfo_screenheight()
+# Emojis
+win_emoji = ImageTk.PhotoImage(Image.open(IMG_WIN).resize((40, 40)))
+lose_emoji = ImageTk.PhotoImage(Image.open(IMG_LOSE).resize((40, 40)))
+draw_emoji = ImageTk.PhotoImage(Image.open(IMG_DRAW).resize((40, 40)))
+regels_emoji = ImageTk.PhotoImage(Image.open(IMG_RULES).resize((40, 40)))
 
-achtergrond_img = Image.open("C:\\Users\\somar\\OneDrive\\Fontys\\20141221_JacksCasino-Groningen_051-1563-1600x1060.jpg")  # Zorg dat dit bestand bestaat!
-achtergrond_img = achtergrond_img.resize((800, 600))
-achtergrond = ImageTk.PhotoImage(achtergrond_img)
-
-bg_label = tk.Label(venster, image=achtergrond)
-bg_label.place(relwidth=1, relheight=1)
-
-# --- Naam Frame --- #
+# Registratie frame
 naam_frame = tk.Frame(venster, bg="#222222", bd=10, relief="ridge", width=600)
+tk.Label(naam_frame, text="Welkom bij Blackjack 30!", font=("Georgia", 18, "bold"), bg="#222222", fg="gold").pack(pady=10)
 
+tk.Label(naam_frame, text="Voer je naam in:", font=("Georgia", 14), bg="#222222", fg="white").pack(pady=5)
+naam_entry = tk.Entry(naam_frame, font=("Georgia", 14), width=20); naam_entry.pack(pady=5)
 
-# Emoji laden
-welkom_img = Image.open("c:\\Users\\somar\\OneDrive\\Fontys\\Emoji's\\heart_eyes.png").resize((40, 40))
-welkom_emoji = ImageTk.PhotoImage(welkom_img)
+tk.Label(naam_frame, text="Voer je leeftijd in:", font=("Georgia", 14), bg="#222222", fg="white").pack(pady=5)
+leeftijd_entry = tk.Entry(naam_frame, font=("Georgia", 14), width=20); leeftijd_entry.pack(pady=5)
 
-win_img = Image.open("c:\\Users\\somar\\OneDrive\\Fontys\\Emoji's\\star-struck.png").resize((40, 40))
-win_emoji = ImageTk.PhotoImage(win_img)
+tk.Label(naam_frame, text="Voer je e-mailadres in:", font=("Georgia", 14), bg="#222222", fg="white").pack(pady=5)
+email_entry = tk.Entry(naam_frame, font=("Georgia", 14), width=20); email_entry.pack(pady=5)
 
-lose_img = Image.open("c:\\Users\\somar\\OneDrive\\Fontys\\Emoji's\\smiling_face_with_tear.png").resize((40, 40))
-lose_emoji = ImageTk.PhotoImage(lose_img)
+fout_label = tk.Label(naam_frame, text="", font=("Georgia", 11), bg="#222222", fg="red"); fout_label.pack(pady=4)
+tk.Button(naam_frame, text="Bevestig gegevens", command=bevestig_gegevens, font=("Georgia", 14), bg="#246a41", fg="white").pack(pady=10)
 
-draw_img = Image.open("c:\\Users\\somar\\OneDrive\\Fontys\\Emoji's\\shaking_face.png").resize((40, 40))
-draw_emoji = ImageTk.PhotoImage(draw_img)
-
-regels_img = Image.open("c:\\Users\\somar\\OneDrive\\Fontys\\Emoji's\\bookmark_tabs.png").resize((40, 40))
-regels_emoji = ImageTk.PhotoImage(regels_img)
-
-welkom_label = tk.Label(naam_frame, text="Welkom bij Blackjack 30!", font=("Georgia", 18, "bold"), bg="#222222", fg="gold")
-welkom_label.pack(pady=10)
-
-naam_label = tk.Label(naam_frame, text="Voer je naam in:", font=("Georgia", 14), bg="#222222", fg="white")
-naam_label.pack(pady=5)
-
-naam_entry = tk.Entry(naam_frame, font=("Georgia", 14), width=20)
-naam_entry.pack(pady=5)
-
-leeftijd_label = tk.Label(naam_frame, text="Voer je leeftijd in:", font=("Georgia", 14), bg="#222222", fg="white")
-leeftijd_label.pack(pady=5)
-
-leeftijd_entry = tk.Entry(naam_frame, font=("Georgia", 14), width=20)
-leeftijd_entry.pack(pady=5)
-
-email_label = tk.Label(naam_frame, text="Voer je e-mailadres in:", font=("Georgia", 14), bg="#222222", fg="white")
-email_label.pack(pady=5)
-
-email_entry = tk.Entry(naam_frame, font=("Georgia", 14), width=20)
-email_entry.pack(pady=5)
-
-bevestig_knop = tk.Button(naam_frame, text="Bevestig gegevens", command=bevestig_gegevens, font=("Georgia", 14), bg="#246a41", fg="white")
-bevestig_knop.pack(pady=10)
-
-# --- Spelregels Frame --- #
+# Spelregels frame
 regels_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge")
-
-regels_title = tk.Label(regels_frame,image=regels_emoji, text="  Spelregels", font=("Georgia", 20, "bold"), fg="#FFFFFF",bg="#222222", compound="left")
-regels_title.pack(pady=5)
-
-
+tk.Label(regels_frame, image=regels_emoji, text="  Spelregels", font=("Georgia", 20, "bold"),
+         fg="#FFFFFF", bg="#222222", compound="left").pack(pady=5)
 regels_text = (
-    "1. Startfase\n"
-    "Jij en de computer krijgen elk een willekeurig getal tussen 0 en 6.\n\n"
-    "2. Keuzemoment\n"
-    "• je kiest JA dan krijg jij en de computer elk extra punten .\n"
-     "  Dit herhaalt zich totdat je op 'Nee' klikt.\n\n"
-    "• Je kiest NEE dan krijgt de computer extra punten en dan wordt bepaald wie de winnaar is .\n"
-    "3. Winconditie\n"
-    "Wie het dichtst bij 30 zit of precies 30 punten heeft zonder eroverheen te gaan, wint.\n"
-    "Als beide boven de 30 zitten, is het gelijkspel."
+    "1. Startfase\nJij en de computer krijgen elk een willekeurig getal tussen 0 en 6.\n\n"
+    "2. Keuzemoment\n• je kiest JA -> jij en de computer krijgen extra punten (herhaalbaar)\n"
+    "• je kiest NEE -> computer krijgt extra punten, daarna wordt de winnaar bepaald\n\n"
+    "3. Winconditie\nDichtst bij 30 wint. Precies 30 = directe winst. Beide boven 30 = gelijkspel."
 )
-regels_label = tk.Label(regels_frame, text=regels_text, font=("Georgia", 12), justify="left", fg="#FFFFFF",bg="#222222")
-regels_label.pack(pady=10)
+tk.Label(regels_frame, text=regels_text, font=("Georgia", 12), justify="left", fg="#FFFFFF", bg="#222222").pack(pady=10)
+tk.Button(regels_frame, text="Start spel", command=start_game, font=("Georgia", 14), bg="#246a41", fg="white").pack(pady=10)
 
-start_knop = tk.Button(regels_frame, text="Start spel", command=start_game, font=("Georgia", 14), bg="#246a41", fg="white")
-start_knop.pack(pady=10)
-
-# --- Game Frame --- #
+# Game frame
 game_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge", width=700, height=400)
+score_frame = tk.Frame(game_frame, bg="#222222"); score_frame.pack(pady=10)
 
-
-
-score_frame = tk.Frame(game_frame, bg="#222222",)
-score_frame.pack(pady=10)
-
-speler_label = tk.Label(score_frame, text=f"{speler_naam}'s score: {speler_score}", font=("Georgia", 18, "bold"), fg="#77b8e3",bg="#222222")
+speler_label = tk.Label(score_frame, text=f"{speler_naam}'s score: {speler_score}",
+                        font=("Georgia", 18, "bold"), fg="#77b8e3", bg="#222222")
 speler_label.grid(row=0, column=0, padx=20)
-
-computer_label = tk.Label(score_frame, text=f"Computer score: {computer_score}", font=("Georgia", 18, "bold"), fg="#e08d85",bg="#222222")
+computer_label = tk.Label(score_frame, text=f"Computer score: {computer_score}",
+                          font=("Georgia", 18, "bold"), fg="#e08d85", bg="#222222")
 computer_label.grid(row=0, column=1, padx=20)
 
-doorgaan_label = tk.Label(game_frame, text="Extra punten toevoegen?", font=("Georgia", 14), fg="#FFFFFF", bg="#222222")
-doorgaan_label.pack(pady=40)
+tk.Label(game_frame, text="Extra punten toevoegen?", font=("Georgia", 14), fg="#FFFFFF", bg="#222222").pack(pady=40)
 
-resultaat_label = tk.Label(game_frame, text="", font=("Georgia", 18, "bold"), bg="#222222")
-resultaat_label.pack(pady=10)
-button_frame = tk.Frame(game_frame, bg="#222222", bd=5, relief="ridge")
-button_frame.pack(pady=10)
+shop_button = tk.Button(game_frame, text="🛒 Icon's shop", font=("Georgia", 12), bg="#8e44ad", fg="white", command=open_shop)
+shop_button.pack(pady=5)
 
-fout_label = tk.Label(naam_frame, text="", font=("Georgia", 11), bg="#222222", fg="red")
-fout_label.pack(pady=4)
+resultaat_label = tk.Label(game_frame, text="", font=("Georgia", 18, "bold"), bg="#222222"); resultaat_label.pack(pady=10)
 
-knop_ja = tk.Button(button_frame, text="Ja", command=klik_ja, width=12, font=("Georgia", 14), bg="#246a41", fg="white", activebackground="#28b463")
+button_frame = tk.Frame(game_frame, bg="#222222"); button_frame.pack(pady=10)
+knop_ja = tk.Button(button_frame, text="Ja", command=klik_ja, width=12, font=("Georgia", 14), bg="#246a41", fg="white")
 knop_ja.grid(row=0, column=0, padx=10, pady=5)
-
-knop_nee = tk.Button(button_frame, text="Nee", command=klik_nee, width=12, font=("Georgia", 14), bg="#a93226", fg="white", activebackground="#a93226")
+knop_nee = tk.Button(button_frame, text="Nee", command=klik_nee, width=12, font=("Georgia", 14), bg="#a93226", fg="white")
 knop_nee.grid(row=0, column=1, padx=10, pady=5)
 
-knop_opnieuw = tk.Button(
-    game_frame,
-    text="Opnieuw spelen",
-    command=opnieuw_spelen,
-    width=25,
-    font=("Georgia", 14),
-    bg="#3498db",
-    fg="white"
-)
+knop_opnieuw = tk.Button(game_frame, text="Opnieuw spelen", command=opnieuw_spelen, width=25,
+                         font=("Georgia", 14), bg="#3498db", fg="white")
+knop_opnieuw.pack_forget()
 
-speler_info_frame = tk.Frame(game_frame, bg="#222222")
-speler_info_frame.pack(pady=10)
-
-speler_info_label = tk.Label(
-    speler_info_frame,
-    text="",
-    font=("Georgia", 14, "bold"),
-    fg="gold",
-    bg="#222222"
-)
+speler_info_frame = tk.Frame(game_frame, bg="#222222"); speler_info_frame.pack(pady=10)
+speler_info_label = tk.Label(speler_info_frame, text="", font=("Georgia", 14, "bold"), fg="gold", bg="#222222")
 speler_info_label.pack()
 
-update_labels()
-start_inlogscherm()
+# ███████ ████████  █████  ██████  ████████ 
+# ██         ██    ██   ██ ██   ██    ██    
+# ███████    ██    ███████ ██████     ██    
+#      ██    ██    ██   ██ ██   ██    ██    
+# ███████    ██    ██   ██ ██   ██    ██                                            
+                                          
+def start_app():
+    update_labels()
+    start_inlogscherm()
+
+start_app()
 venster.mainloop()
+
+

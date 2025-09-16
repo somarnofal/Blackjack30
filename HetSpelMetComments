@@ -90,9 +90,13 @@ for code, naam, prijs, icon in [
 
 conn.commit()
 
-# ==========================
-# STATE
-# ==========================
+
+# ███████ ████████  █████  ████████ ███████ 
+# ██         ██    ██   ██    ██    ██      
+# ███████    ██    ███████    ██    █████   
+#      ██    ██    ██   ██    ██    ██      
+# ███████    ██    ██   ██    ██    ███████ 
+
 speler_score = 0
 computer_score = 0
 speler_naam = ""
@@ -105,9 +109,20 @@ speler_credits = 0
 speler_rang = 0
 geselecteerde_skin = None
 
-# ==========================
-# FUNCTIES – HELPER / DB
-# ==========================
+# ███████ ██    ██ ███    ██  ██████ ████████ ██ ███████ ███████ 
+# ██      ██    ██ ████   ██ ██         ██    ██ ██      ██      
+# █████   ██    ██ ██ ██  ██ ██         ██    ██ █████   ███████ 
+# ██      ██    ██ ██  ██ ██ ██         ██    ██ ██           ██ 
+# ██       ██████  ██   ████  ██████    ██    ██ ███████ ███████ 
+
+# █████ █████ █████ █████ █████ █████ █████ █████ █████ █████ █████ 
+                                                            
+# ██   ██ ███████ ██      ██████  ███████ ██████          ██     ██████  ██████  
+# ██   ██ ██      ██      ██   ██ ██      ██   ██        ██      ██   ██ ██   ██ 
+# ███████ █████   ██      ██████  █████   ██████        ██       ██   ██ ██████  
+# ██   ██ ██      ██      ██      ██      ██   ██      ██        ██   ██ ██   ██ 
+# ██   ██ ███████ ███████ ██      ███████ ██   ██     ██         ██████  ██████  
+\
 def update_labels():
     speler_label.config(text=f"{speler_naam}'s score: {speler_score}")
     computer_label.config(text=f"Computer score: {computer_score}")
@@ -140,9 +155,21 @@ def get_speler_stats():
     )
     speler_label.config(text=f"{speler_naam}'s score: {speler_score}")
 
-# ==========================
-# FUNCTIES – AUTH / FLOW
-# ==========================
+# ███████ ██    ██ ███    ██  ██████ ████████ ██ ███████ ███████     
+# ██      ██    ██ ████   ██ ██         ██    ██ ██      ██          
+# █████   ██    ██ ██ ██  ██ ██         ██    ██ █████   ███████     
+# ██      ██    ██ ██  ██ ██ ██         ██    ██ ██           ██     
+# ██       ██████  ██   ████  ██████    ██    ██ ███████ ███████     
+
+# █████ █████ █████ █████ █████ █████ █████ █████ 
+
+#  █████  ██    ██ ████████ ██   ██         ██     ███████ ██       ██████  ██     ██ 
+# ██   ██ ██    ██    ██    ██   ██        ██      ██      ██      ██    ██ ██     ██ 
+# ███████ ██    ██    ██    ███████       ██       █████   ██      ██    ██ ██  █  ██ 
+# ██   ██ ██    ██    ██    ██   ██      ██        ██      ██      ██    ██ ██ ███ ██ 
+# ██   ██  ██████     ██    ██   ██     ██         ██      ███████  ██████   ███ ███  
+                                                                                    
+                                                                                    
 def bevestig_gegevens():
     global speler_naam, speler_leeftijd, speler_email
 
@@ -289,20 +316,46 @@ def start_inlogscherm():
 def toon_welkom_scherm(bericht, image=None):
     welkom = tk.Frame(venster, bg="#222222")
     welkom.pack(expand=True, fill="both")
-    center = tk.Frame(welkom, bg="#222222"); center.place(relx=0.5, rely=0.5, anchor="center")
-    tk.Label(center, text=bericht, font=("Georgia", 18, "bold"), bg="#222222", fg="gold",
-             image=image, compound="right").pack(pady=20)
-    tk.Button(center, text="Verder", font=("Georgia", 14), bg="#246a41", fg="white",
-              command=lambda: ga_naar_regels(welkom)).pack(pady=10)
+
+    center = tk.Frame(welkom, bg="#222222")
+    center.place(relx=0.5, rely=0.5, anchor="center")
+
+    # Bericht
+    tk.Label(center, text=bericht, font=("Georgia", 18, "bold"),bg="#222222",fg="gold",image=image,compound="right"
+    ).pack(pady=20)
+
+    # Knoppenframe
+    button_frame = tk.Frame(center, bg="#222222")
+    button_frame.pack(pady=10)
+
+    # Knop: spelregels
+    tk.Button(button_frame,text="Bekijk spelregels",font=("Georgia", 14),bg="#1b547a",fg="white",command=lambda: ga_naar_regels(welkom)
+    ).grid(row=0, column=0, padx=10)
+
+    # Knop: direct naar spel
+    tk.Button(button_frame,text="Direct spelen",font=("Georgia", 14),bg="#176336",fg="white",command=lambda: [welkom.pack_forget(), start_game()]).grid(row=0, column=1, padx=10)
+
 
 def ga_naar_regels(frame):
     frame.pack_forget()
     regels_frame.pack(pady=20)
     regels_frame.place(relx=0.5, rely=0.4, anchor="center")
 
-# ==========================
-# FUNCTIES – TUTORIAL
-# ==========================
+# ███████ ██    ██ ███    ██  ██████ ████████ ██ ███████ ███████     
+# ██      ██    ██ ████   ██ ██         ██    ██ ██      ██          
+# █████   ██    ██ ██ ██  ██ ██         ██    ██ █████   ███████     
+# ██      ██    ██ ██  ██ ██ ██         ██    ██ ██           ██     
+# ██       ██████  ██   ████  ██████    ██    ██ ███████ ███████     
+
+# █████ █████ █████ █████ █████ █████ █████ █████ 
+
+# ████████ ██    ██ ████████  ██████  ██████  ██  █████  ██      
+#    ██    ██    ██    ██    ██    ██ ██   ██ ██ ██   ██ ██      
+#    ██    ██    ██    ██    ██    ██ ██████  ██ ███████ ██      
+#    ██    ██    ██    ██    ██    ██ ██   ██ ██ ██   ██ ██      
+#    ██     ██████     ██     ██████  ██   ██ ██ ██   ██ ███████ 
+                                                               
+                                                               
 def start_tutorial():
     naam_frame.pack_forget()
 
@@ -638,5 +691,3 @@ def start_app():
 
 start_app()
 venster.mainloop()
-
-

@@ -19,6 +19,7 @@ IMG_DRAW = r"c:\Users\somar\OneDrive\Fontys\Emoji's\shaking_face.png"
 IMG_RULES = r"c:\Users\somar\OneDrive\Fontys\Emoji's\bookmark_tabs.png"
 
 
+
 # ██████   █████  ████████  █████  ██████   █████  ███████ ███████ 
 # ██   ██ ██   ██    ██    ██   ██ ██   ██ ██   ██ ██      ██      
 # ██   ██ ███████    ██    ███████ ██████  ███████ ███████ █████   
@@ -82,12 +83,12 @@ for code, naam, prijs, icon in [
     ("fox",    "Vos",  45, "🦊"),
     ("wolf",   "Wolf", 50, "🐺"),
     ("tiger",  "Tijger", 50, "🐯"),
+    ("unicorn","Eenhoorn", 55, "🦄"),
 ]:
     try:
         c.execute("INSERT INTO skins (code, naam, prijs, icon) VALUES (?,?,?,?)", (code, naam, prijs, icon))
     except sqlite3.IntegrityError:
         pass
-
 conn.commit()
 
 
@@ -330,10 +331,10 @@ def toon_welkom_scherm(bericht, image=None):
 
     # Knop: spelregels
     tk.Button(button_frame,text="Bekijk spelregels",font=("Georgia", 14),bg="#1b547a",fg="white",command=lambda: ga_naar_regels(welkom)
-    ).grid(row=0, column=0, padx=10)
+    ).grid(row=0, column=1, padx=10)
 
-    # Knop: direct naar spel
-    tk.Button(button_frame,text="Direct spelen",font=("Georgia", 14),bg="#176336",fg="white",command=lambda: [welkom.pack_forget(), start_game()]).grid(row=0, column=1, padx=10)
+    # Knop: start spel
+    tk.Button(button_frame,text="Start spel",font=("Georgia", 14),bg="#176336",fg="white",command=lambda: [welkom.pack_forget(), start_game()]).grid(row=0, column=0, padx=10)
 
 
 def ga_naar_regels(frame):
@@ -448,8 +449,8 @@ def start_game():
 
 def klik_ja():
     global speler_score, computer_score
-    speler_score += random.randint(0, 3 if speler_score >= 20 else 9)
-    computer_score += random.randint(0, 3 if computer_score >= 20 else 9)
+    speler_score += random.randint(0, 3 if speler_score >= 20 else 10)
+    computer_score += random.randint(0, 3 if computer_score >= 20 else 10)
     update_labels()
     if speler_score == 30:
         win_speler("  Je hebt exact 30! Jij wint!")
@@ -508,7 +509,7 @@ def verlies_speler(msg):
     disable_buttons()
 
 def gelijkspel(msg):
-    resultaat_label.config(image=draw_emoji, text=msg, fg="blue", compound="left")
+    resultaat_label.config(image=draw_emoji, text=msg, fg="#2a83be", compound="left")
     disable_buttons()
 
 def disable_buttons():

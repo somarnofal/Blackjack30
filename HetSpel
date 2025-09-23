@@ -1,4 +1,5 @@
 import email
+import os
 import tkinter as tk
 import random
 from PIL import Image, ImageTk
@@ -12,11 +13,16 @@ import sqlite3
 # ██      ██    ██ ██  ██ ██ ██      ██ ██    ██ 
 #  ██████  ██████  ██   ████ ██      ██  ██████  
 
-IMG_BG = r"C:\Users\somar\OneDrive\Fontys\20141221_JacksCasino-Groningen_051-1563-1600x1060.jpg"
-IMG_WIN = r"c:\Users\somar\OneDrive\Fontys\Emoji's\star-struck.png"
-IMG_LOSE = r"c:\Users\somar\OneDrive\Fontys\Emoji's\smiling_face_with_tear.png"
-IMG_DRAW = r"c:\Users\somar\OneDrive\Fontys\Emoji's\shaking_face.png"
-IMG_RULES = r"c:\Users\somar\OneDrive\Fontys\Emoji's\bookmark_tabs.png"
+# mapnaam
+IMG_DIR = os.path.join("Emoji's")
+
+# bestanden
+IMG_BG = os.path.join(IMG_DIR, "20141221_JacksCasino-Groningen_051-1563-1600x1060.jpg")
+IMG_WIN = os.path.join(IMG_DIR, "star-struck.png")
+IMG_LOSE = os.path.join(IMG_DIR, "smiling_face_with_tear.png")
+IMG_DRAW = os.path.join(IMG_DIR, "shaking_face.png")
+IMG_RULES = os.path.join(IMG_DIR, "bookmark_tabs.png")
+IMG_FRAME = os.path.join(IMG_DIR, "360_F_362053188_oQ0WRHCFkIY4QlXS1S5d1i9bpYup67ll.jpg")
 
 
 
@@ -40,7 +46,7 @@ CREATE TABLE IF NOT EXISTS spelers (
 )
 """)
 
-# veilige ALTERs voor bestaande DB's
+# wijzigingen aan database
 try:
     c.execute("ALTER TABLE spelers ADD COLUMN credits INTEGER DEFAULT 0")
 except sqlite3.OperationalError:
@@ -59,6 +65,7 @@ CREATE TABLE IF NOT EXISTS skins (
     icon TEXT NOT NULL
 )
 """)
+
 
 c.execute("""
 CREATE TABLE IF NOT EXISTS speler_skins (
@@ -414,7 +421,7 @@ def start_tutorial():
         extra_comp = random.randint(1, 6)
         scores["computer"] += extra_comp
         computer_demo.config(text=f"Computer score: {scores['computer']} (+{extra_comp})")
-        uitleg.config(text="Omdat je stopte, kreeg de computer extra punten.\nJouw score bleef gelijk.\n\nNu bepaalt het spel wie er wint!")
+        uitleg.config(text="Omdat je stopte, kreeg de computer extra punten.\nJouw score bleef gelijk.\n\nNu bepaalt het spel wie er wint!\n\n Bij elke win krijg je 2 credits!\nmet credits kan je skins kopen \nen naast je naam laten verschijnen 🙂")
         tk.Button(knop_frame, text="Volgende", command=volgende_stap, font=("Georgia", 14), bg="#246a41", fg="white").pack()
 
     def start_echt_spel():
@@ -447,11 +454,33 @@ def start_game():
     get_speler_stats()
     knop_opnieuw.config(state="disabled")
 
+def animate_score(label, old, new, prefix):
+    step = 1 if new > old else -1
+    def update(current):
+        if current != new:
+            label.config(text=f"{prefix} {current}")
+            label.after(50, update, current + step)
+        else:
+            label.config(text=f"{prefix} {new}")  # eindstand
+    update(old)
+    
+
+
 def klik_ja():
     global speler_score, computer_score
-    speler_score += random.randint(0, 3 if speler_score >= 20 else 10)
-    computer_score += random.randint(0, 3 if computer_score >= 20 else 10)
-    update_labels()
+
+    extra_speler = random.randint(0, 3 if speler_score >= 20 else 10)
+    extra_comp = random.randint(0, 3 if computer_score >= 20 else 10)
+
+    old_speler = speler_score
+    old_comp = computer_score
+
+    speler_score += extra_speler
+    computer_score += extra_comp
+
+    animate_score(speler_label, old_speler, speler_score, f"{speler_naam}'s score:")
+    animate_score(computer_label, old_comp, computer_score, "Computer score:")
+
     if speler_score == 30:
         win_speler("  Je hebt exact 30! Jij wint!")
         return
@@ -460,10 +489,17 @@ def klik_ja():
         return
     check_winner()
 
+
 def klik_nee():
     global computer_score
-    computer_score += random.randint(0, 3 if computer_score >= 20 else 9)
-    update_labels()
+
+    extra_comp = random.randint(0, 3 if computer_score >= 20 else 9)
+    old_comp = computer_score
+
+    computer_score += extra_comp
+
+    animate_score(computer_label, old_comp, computer_score, "Computer score:")
+
     if computer_score == 30:
         verlies_speler("  Computer heeft exact 30! Jij verliest!")
         return
@@ -471,6 +507,7 @@ def klik_nee():
         win_speler("  Je hebt exact 30! Jij wint!")
         return
     check_winner(final=True)
+
 
 def check_winner(final=False):
     if speler_score > 30 and computer_score > 30:
@@ -506,6 +543,16 @@ def win_speler(msg):
 
 def verlies_speler(msg):
     resultaat_label.config(image=lose_emoji, text=msg, fg="red", compound="left")
+    # if speler_credits < 0:
+    #     speler_credits = 0
+    # else:
+    #  c.execute("""
+    #     UPDATE spelers
+    #     SET credits = credits - 1
+    #     WHERE email = ?
+    # """, (speler_email,))
+    # conn.commit()
+    get_speler_stats()
     disable_buttons()
 
 def gelijkspel(msg):
@@ -520,7 +567,7 @@ def disable_buttons():
 
 def opnieuw_spelen():
     global speler_score, computer_score
-    speler_score = 0; computer_score = 0
+    speler_score = random.randint(0, 6); computer_score = random.randint(0, 6)
     update_labels()
     resultaat_label.config(text="", image="")
     knop_ja.config(state="normal")
@@ -570,12 +617,18 @@ def buy_skin(code, prijs, shop):
     if speler_credits < prijs:
         messagebox.showinfo("Onvoldoende credits", "Je hebt niet genoeg credits.")
         return
+    # credits aftrekken in DB
     c.execute("UPDATE spelers SET credits = credits - ? WHERE id = ?", (prijs, speler_id))
     c.execute("INSERT OR IGNORE INTO speler_skins (speler_id, skin_code) VALUES (?,?)", (speler_id, code))
     conn.commit()
+    # credits meteen lokaal updaten
     speler_credits -= prijs
+    get_speler_stats() # update credits label
     messagebox.showinfo("Succes", "Skin gekocht!")
-    shop.destroy(); open_shop()
+    # Shop direct vernieuwen
+    shop.destroy()
+    open_shop()
+
 
 def equip_skin(code, shop=None):
     global geselecteerde_skin
@@ -648,37 +701,65 @@ regels_text = (
 tk.Label(regels_frame, text=regels_text, font=("Georgia", 12), justify="left", fg="#FFFFFF", bg="#222222").pack(pady=10)
 tk.Button(regels_frame, text="Start spel", command=start_game, font=("Georgia", 14), bg="#246a41", fg="white").pack(pady=10)
 
-# Game frame
-game_frame = tk.Frame(venster, bg="#222222", bd=5, relief="ridge", width=700, height=400)
-score_frame = tk.Frame(game_frame, bg="#222222"); score_frame.pack(pady=10)
+# Game frame (nieuwe layout)
+game_frame = tk.Frame(venster, bg="#1e1e1e", bd=8, relief="ridge", width=700, height=400)
+
+# Score sectie
+score_frame = tk.Frame(game_frame, bg="#1e1e1e")
+score_frame.grid(row=0, column=0, columnspan=3, pady=15)
 
 speler_label = tk.Label(score_frame, text=f"{speler_naam}'s score: {speler_score}",
-                        font=("Georgia", 18, "bold"), fg="#77b8e3", bg="#222222")
-speler_label.grid(row=0, column=0, padx=20)
+                        font=("Georgia", 18, "bold"), fg="#77b8e3", bg="#1e1e1e")
+speler_label.grid(row=0, column=0, padx=40)
+
 computer_label = tk.Label(score_frame, text=f"Computer score: {computer_score}",
-                          font=("Georgia", 18, "bold"), fg="#e08d85", bg="#222222")
-computer_label.grid(row=0, column=1, padx=20)
+                          font=("Georgia", 18, "bold"), fg="#e08d85", bg="#1e1e1e")
+computer_label.grid(row=0, column=1, padx=40)
 
-tk.Label(game_frame, text="Extra punten toevoegen?", font=("Georgia", 14), fg="#FFFFFF", bg="#222222").pack(pady=40)
+# Resultaat
+resultaat_label = tk.Label(game_frame, text="", font=("Georgia", 18, "bold"),
+                           fg="white", bg="#1e1e1e")
+resultaat_label.grid(row=1, column=0, columnspan=3, pady=10)
 
-shop_button = tk.Button(game_frame, text="🛒 Icon's shop", font=("Georgia", 12), bg="#8e44ad", fg="white", command=open_shop)
-shop_button.pack(pady=5)
+# Titel boven de knoppen
+tk.Label(game_frame, text="Extra getal toevoegen?", 
+         font=("Georgia", 14, "bold"), fg="white", bg="#1e1e1e").grid(row=2, column=0, columnspan=3, pady=(10, 5))
 
-resultaat_label = tk.Label(game_frame, text="", font=("Georgia", 18, "bold"), bg="#222222"); resultaat_label.pack(pady=10)
+# Knoppen (JA / NEE)
+button_frame = tk.Frame(game_frame, bg="#1e1e1e")
+button_frame.grid(row=3, column=0, columnspan=3, pady=15)
 
-button_frame = tk.Frame(game_frame, bg="#222222"); button_frame.pack(pady=10)
-knop_ja = tk.Button(button_frame, text="Ja", command=klik_ja, width=12, font=("Georgia", 14), bg="#246a41", fg="white")
-knop_ja.grid(row=0, column=0, padx=10, pady=5)
-knop_nee = tk.Button(button_frame, text="Nee", command=klik_nee, width=12, font=("Georgia", 14), bg="#a93226", fg="white")
-knop_nee.grid(row=0, column=1, padx=10, pady=5)
+knop_ja = tk.Button(button_frame, text="JA", command=klik_ja, width=9,
+                    font=("Georgia", 14), bg="#246a41", fg="white",
+                    relief="raised", bd=4)
+knop_ja.grid(row=0, column=0, padx=20, ipadx=10, ipady=5)
 
-knop_opnieuw = tk.Button(game_frame, text="Opnieuw spelen", command=opnieuw_spelen, width=25,
-                         font=("Georgia", 14), bg="#3498db", fg="white")
+knop_nee = tk.Button(button_frame, text="NEE", command=klik_nee, width=9,
+                     font=("Georgia", 14), bg="#a93226", fg="white",
+                     relief="raised", bd=4)
+knop_nee.grid(row=0, column=1, padx=20, ipadx=10, ipady=5)
+
+# Shop + opnieuw spelen
+extra_frame = tk.Frame(game_frame, bg="#1e1e1e")
+extra_frame.grid(row=4, column=0, columnspan=3, pady=15)
+
+shop_button = tk.Button(extra_frame, text="🛒 Shop", font=("Georgia", 12),
+                        bg="#8e44ad", fg="white", command=open_shop)
+shop_button.pack(side="left", padx=20)
+
+knop_opnieuw = tk.Button(extra_frame, text="Opnieuw spelen", command=opnieuw_spelen,
+                         width=20, font=("Georgia", 14), bg="#3498db", fg="white")
+knop_opnieuw.pack(side="left", padx=20)
 knop_opnieuw.pack_forget()
 
-speler_info_frame = tk.Frame(game_frame, bg="#222222"); speler_info_frame.pack(pady=10)
-speler_info_label = tk.Label(speler_info_frame, text="", font=("Georgia", 14, "bold"), fg="gold", bg="#222222")
+# Speler info
+speler_info_frame = tk.Frame(game_frame, bg="#1e1e1e")
+speler_info_frame.grid(row=5, column=0, columnspan=3, pady=10)
+
+speler_info_label = tk.Label(speler_info_frame, text="", font=("Georgia", 14, "bold"),
+                             fg="gold", bg="#1e1e1e")
 speler_info_label.pack()
+
 
 # ███████ ████████  █████  ██████  ████████ 
 # ██         ██    ██   ██ ██   ██    ██    

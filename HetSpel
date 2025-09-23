@@ -211,7 +211,7 @@ def bevestig_gegevens():
 
     c.execute("SELECT id FROM spelers WHERE email = ?", (speler_email,))
     if c.fetchone():
-        fout_label.config(text="Dit e-mailadres is al geregistreerd.")
+        fout_label.config(text="Dit e-mailadres is al geregistreerd.", fg="orange")
         tk.Button(
             naam_frame, text="Terug naar inloggen", font=("Georgia", 12),
             bg="#3498db", fg="white",
